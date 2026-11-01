@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lesson 26 — DP Recognition (the recipe)</title>
+<title>Lesson 26 — DP Recognition (state, transition, compute)</title>
 <link rel="stylesheet" href="../assets/course.css">
 </head>
 <body>
 
 <p class="course-tag">Pattern-Driven DSA · Part 5 · Dynamic Programming</p>
 <span class="lesson-no">Lesson 26 of the course</span>
-<h1>DP Recognition — the recipe that turns exponential recursion into a table</h1>
+<h1>DP Recognition — every DP is three acts: define the state, define the transition, compute the DP</h1>
 
-<p>Dynamic programming is the single biggest interview filter, and it is where most people freeze. The cure is to stop thinking of DP as a bag of tricks and start treating it as one mechanical recipe: <em>find the choice, write the recurrence, notice the repeats, cache them.</em> By the end of this lesson you will be able to look at a problem and <em>derive</em> whether DP applies — not recall whether you've seen it.</p>
+<p>Dynamic programming is the single biggest interview filter, and it is where most people freeze. The cure is to stop thinking of DP as a bag of tricks and start treating it as three mechanical acts, always in the same order: <em>define the state function, define the transition function, then compute the DP.</em> Every DP you will ever write is nothing more than these three acts applied to a harder problem. By the end of this lesson you will be able to look at a problem and <em>derive</em> whether DP applies — not recall whether you've seen it.</p>
 
 <!-- ============ SPACED RETRIEVAL ============ -->
 <h2>Warm-up — recall from earlier lessons (no peeking)</h2>
@@ -50,7 +50,7 @@
 def fib(n):
     if n < 2: return n
     return fib(n-1) + fib(n-2)   # now O(n)</code></pre>
-  <p>That's it. DP is nothing more than <em>recursion plus a memory of answers you've already computed.</em> Every DP you will ever write is this move applied to a harder recurrence.</p>
+  <p>That's it. DP is nothing more than <em>recursion plus a memory of answers you've already computed.</em> The three acts just name that move precisely: the recursive function <em>is</em> the state function, its recurrence <em>is</em> the transition function, and adding the memory <em>is</em> how you compute the DP. Every DP you will ever write is this applied to a harder problem.</p>
 </div>
 
 <h3>The two conditions, stated so you can test for them</h3>
@@ -61,38 +61,36 @@ def fib(n):
 </ul>
 
 <!-- ============ THE RECIPE ============ -->
-<h2>The recipe — the same five steps for every DP</h2>
-<p>Once you suspect DP, you never improvise. You run these five steps, in order, every time. They are written as actions you perform, not facts to memorize.</p>
+<h2>The recipe — the same three acts for every DP</h2>
+<p>Once you suspect DP, you never improvise. You perform these three acts, in order, every time. They are written as things you do, not facts to memorize.</p>
 
 <ol>
-  <li><strong>Name the state.</strong> Decide what parameters fully describe a subproblem — the smallest set of values such that two calls with the same values must have the same answer. For Fibonacci it is just <code>n</code>. For a walk through an array it is usually "an index i, meaning the subproblem on the suffix starting at i." Getting the state right is 80% of the work; everything else follows.</li>
-  <li><strong>Write the recurrence by enumerating the choice.</strong> At the current state, list every move you could make. Each move consumes part of the problem and leaves a smaller state. The recurrence combines the results of those smaller states — a <code>max</code>/<code>min</code> for optimization, a <code>+</code> for counting, an <code>or</code> for feasibility.</li>
-  <li><strong>State the base cases.</strong> The smallest states whose answers are known without recursing — usually an empty suffix, index past the end, or n &lt; 2.</li>
-  <li><strong>Memoize (top-down).</strong> Wrap the recursion in a cache keyed by the state. This is already a correct, efficient DP; many interviews accept it as the final answer.</li>
-  <li><strong>Optionally convert to tabulation (bottom-up).</strong> Fill a table in an order where every state's dependencies are computed before it. This removes recursion overhead and often lets you shrink memory to O(1) by keeping only the last row/few values.</li>
+  <li><strong>Define the state function.</strong> Decide the minimal set of parameters such that <code>dp(those parameters)</code> is the answer to exactly one subproblem — the smallest set of values for which two calls with the same values must return the same answer. For Fibonacci it is just <code>n</code>, so <code>dp(n)</code> is "the n-th Fibonacci number." For a walk through an array it is usually an index <code>i</code>, meaning "the subproblem on the suffix starting at <code>i</code>." The smallest states — the ones whose answer you know without recursing, like an empty suffix, an index past the end, or <code>n &lt; 2</code> — are the <strong>base cases</strong>, and you pin them down here, while defining the function, not as a separate step. Getting this act right is 80% of the work; everything else follows.</li>
+  <li><strong>Define the transition function.</strong> At the current state, enumerate every choice you could make. Each choice consumes part of the problem and leaves a smaller state, so you write <code>dp(state)</code> in terms of <code>dp(smaller states)</code> — that equation is the transition (the recurrence). The operator that combines the sub-answers is dictated by what the question asks for: <code>max</code>/<code>min</code> for a best value, <code>+</code> for a count of ways, <code>or</code> for feasibility.</li>
+  <li><strong>Compute the DP.</strong> Evaluate the state function over all states. <em>How</em> you evaluate it is a single free choice, not a new idea: you can <strong>memoize</strong> (top-down — follow the transition literally and cache each state the first time you compute it) or <strong>tabulate</strong> (bottom-up — fill a table in an order where every state's dependencies are ready before it). Both run the exact same two functions you just defined; you pick whichever is more convenient for the problem.</li>
 </ol>
 
-<h3>Memoization vs. tabulation — which, and why</h3>
-<p>These are two implementations of the identical recurrence, so pick by convenience, not correctness. <strong>Top-down memoization</strong> is easier to write because it follows the recurrence literally and only computes states you actually reach, which matters when the state space is large but sparsely used. <strong>Bottom-up tabulation</strong> is worth the extra thought when you want to drop the recursion stack (deep states can overflow it) or when you can see that each state only depends on the previous row, which lets you throw the rest of the table away and run in O(1) extra space.</p>
+<h3>The two ways to compute — which, and why</h3>
+<p>Act 3 has two implementations of the identical state and transition functions, so pick by convenience, not correctness. <strong>Top-down memoization</strong> is easier to write because it follows the transition literally and only computes states you actually reach, which matters when the state space is large but sparsely used. <strong>Bottom-up tabulation</strong> is worth the extra thought when you want to drop the recursion stack (deep states can overflow it) or when you can see that each state only depends on the previous row, which lets you throw the rest of the table away and run in O(1) extra space.</p>
 
 <!-- ============ TEMPLATE ============ -->
 <h2>The template (reproduce from memory)</h2>
-<pre><code># TOP-DOWN: the shape of nearly every DP you'll write
+<pre><code># ACT 3, first way to compute — MEMOIZE (top-down): the shape of nearly every DP you'll write
 from functools import cache
 
 def solve(problem):
     @cache
-    def dp(state):
+    def dp(state):                          # the STATE function (act 1)
         if is_base(state):
-            return base_value(state)
+            return base_value(state)        # base cases = the smallest states
         best = NEUTRAL                      # 0 / -inf / +inf depending on combine
-        for choice in choices(state):
+        for choice in choices(state):       # the TRANSITION function (act 2)
             sub = dp(next_state(state, choice))
             best = combine(best, value(choice) + sub)
         return best
     return dp(initial_state)
 
-# BOTTOM-UP: same recurrence, filled in dependency order
+# ACT 3, second way to compute — TABULATE (bottom-up): same state + transition, filled in dependency order
 def solve_table(n):
     dp = [base for _ in range(n + 1)]
     for i in range(first_unknown, n + 1):
@@ -103,7 +101,7 @@ def solve_table(n):
 
 <!-- ============ PRACTICE ============ -->
 <h2>Practice — at least ten, easy to hard</h2>
-<p>Problems only. Solve them yourself; ask me if you get stuck. For each, your first job is to <em>name the state</em> and <em>write the recurrence</em> before any code — that is the skill this lesson trains.</p>
+<p>Problems only. Solve them yourself; ask me if you get stuck. For each, your first job is to <em>define the state function</em> and <em>define the transition function</em> before any code — those two acts are the skill this lesson trains; computing the DP afterward is mechanical.</p>
 
 <ol>
   <li><strong>Fibonacci Number</strong> (Easy) — <a href="https://leetcode.com/problems/fibonacci-number/">link</a></li>
@@ -135,8 +133,8 @@ def solve_table(n):
 
 <h2>Your reps</h2>
 <ol>
-  <li>For every practice problem, write the <em>state</em> and the <em>recurrence</em> on paper before coding. If you can do that, the code is mechanical.</li>
-  <li>Take one problem you solved top-down and convert it to bottom-up, then shrink its memory. Doing this once makes the conversion permanent.</li>
+  <li>For every practice problem, define the <em>state function</em> and the <em>transition function</em> on paper before coding. If you can do those two acts, computing the DP is mechanical.</li>
+  <li>Take one problem you computed top-down (memoized) and recompute it bottom-up (tabulated), then shrink its memory. Act 3 is the only thing that changes; doing this once makes the two ways of computing permanent.</li>
 </ol>
 
 <!-- ============ REFERENCE CARD ============ -->
@@ -149,13 +147,11 @@ def solve_table(n):
   <li><strong>Overlapping subproblems:</strong> those smaller problems recur through different choice paths, so caching each one turns exponential work into polynomial. If subproblems never repeat, it is not DP (it is greedy, divide-and-conquer, or plain recursion).</li>
 </ul>
 
-<h3>The recipe (same every time)</h3>
+<h3>The recipe (same three acts every time)</h3>
 <ol>
-  <li>Name the state — the minimal parameters that identify a subproblem.</li>
-  <li>Write the recurrence by enumerating the choice at the current state.</li>
-  <li>State base cases.</li>
-  <li>Memoize top-down (cache keyed by state).</li>
-  <li>Optionally tabulate bottom-up and shrink memory.</li>
+  <li><strong>Define the state function</strong> — the minimal parameters for which <code>dp(params)</code> is one subproblem's answer; its smallest states are the base cases, pinned down here.</li>
+  <li><strong>Define the transition function</strong> — enumerate the choice at the current state and write <code>dp(state)</code> in terms of <code>dp(smaller states)</code>, combined by the operator the question demands.</li>
+  <li><strong>Compute the DP</strong> — evaluate the function over all states, either by memoizing top-down or tabulating bottom-up (and shrinking memory). This choice is an implementation detail of this one act, not a separate step.</li>
 </ol>
 
 <h3>How to combine sub-answers</h3>

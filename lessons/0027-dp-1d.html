@@ -17,10 +17,10 @@
 <!-- SPACED RETRIEVAL -->
 <h2>Warm-up — recall (no peeking)</h2>
 <div class="probe" data-answered="0">
-  <div class="q">1. From Lesson 26, what is the single most important step in solving any DP?</div>
-  <button class="opt" data-correct="true" data-fb="Yes — naming the state (the minimal parameters identifying a subproblem). Everything else follows from a correct state.">Naming the state correctly</button>
-  <button class="opt" data-correct="false" data-fb="Tabulation is just an implementation choice; the recurrence (which needs the state) comes first.">Choosing tabulation over memoization</button>
-  <button class="opt" data-correct="false" data-fb="Base cases matter but are trivial once the state and recurrence are right.">Writing the base cases</button>
+  <div class="q">1. From Lesson 26, DP is three acts: define the state function, define the transition function, compute the DP. Which act is the hardest and most important to get right?</div>
+  <button class="opt" data-correct="true" data-fb="Yes — defining the state function (the minimal parameters for which dp(params) is one subproblem's answer). A correct state makes the transition fall out; a wrong state makes everything downstream fail.">Defining the state function</button>
+  <button class="opt" data-correct="false" data-fb="Computing the DP is act 3, and memoize-vs-tabulate is just an implementation choice inside it — the easy part once the state and transition are right.">Choosing tabulation over memoization</button>
+  <button class="opt" data-correct="false" data-fb="Base cases are just the smallest states, named while you define the state function — not a separate, hard act.">Writing the base cases</button>
 </div>
 <div class="probe" data-answered="0">
   <div class="q">2. Which combine operator fits a "count the number of ways" DP?</div>
@@ -40,13 +40,13 @@
     <li>If you <em>rob</em> house <code>i</code>, you collect <code>nums[i]</code> but cannot touch house <code>i-1</code>, so the rest of your money comes from the best solution ending at <code>i-2</code>.</li>
     <li>If you <em>skip</em> house <code>i</code>, your total is just the best solution ending at <code>i-1</code>.</li>
   </ul>
-  <p><strong>The state and recurrence fall out directly.</strong> Let <code>dp[i]</code> = max money robbable from houses <code>0..i</code>. Then:</p>
+  <p><strong>The state function and the transition fall out directly.</strong> Define the state function <code>dp(i)</code> = max money robbable from houses <code>0..i</code>. The transition enumerates the two choices at house <code>i</code>:</p>
   <pre><code>dp[i] = max(dp[i-1],            # skip house i
             dp[i-2] + nums[i])  # rob house i</code></pre>
   <p><strong>Spot the overlap:</strong> the naive recursion recomputes <code>dp[i-2]</code> from both branches, exponentially. Caching it — or filling a left-to-right array — makes it O(n). And since <code>dp[i]</code> only looks back two steps, you don't need the whole array: two rolling variables suffice, giving O(1) space.</p>
 </div>
 
-<p><strong>The transferable shape:</strong> a 1D DP exists whenever you can say "the best answer ending at position i is some combination of the best answers ending at a few earlier positions." The entire family is variations on which earlier positions you look back to, and how you combine them.</p>
+<p><strong>The transferable shape:</strong> a 1D DP exists whenever you can define the state function as "<code>dp(i)</code> = the best answer ending at position i" and write a transition that combines a few earlier positions. The entire family is variations on which earlier positions the transition looks back to, and how it combines them.</p>
 
 <!-- WHEN / WHY -->
 <h2>When to reach for 1D DP, and why</h2>
@@ -75,7 +75,7 @@ def one_d_dp(n):
 
 <!-- PRACTICE -->
 <h2>Practice — at least ten, easy to hard</h2>
-<p>Problems only. Name the state and recurrence first, then code.</p>
+<p>Problems only. Define the state function and the transition first, then compute.</p>
 <ol>
   <li><strong>Climbing Stairs</strong> (Easy) — <a href="https://leetcode.com/problems/climbing-stairs/">link</a></li>
   <li><strong>Min Cost Climbing Stairs</strong> (Easy) — <a href="https://leetcode.com/problems/min-cost-climbing-stairs/">link</a></li>
@@ -113,8 +113,8 @@ def one_d_dp(n):
 <h2 id="refcard">Reference card — 1D DP</h2>
 <h3>When, and why</h3>
 <p>Use it when you scan a line making a local choice at each position whose effect reaches only a few earlier positions, and you need a best value, a count, or a yes/no over all ways to process the line. Because each position depends on a bounded number of predecessors, you compute left to right in O(n), and usually keep only the last few values for O(1) space.</p>
-<h3>The move</h3>
-<p>Define <code>dp[i]</code> = the answer for the prefix ending at i. Write it as a combination of <code>dp[i-1]</code>, <code>dp[i-2]</code>, … Choose the combine operator from the question: max/min for best, + for count, or for possible.</p>
+<h3>The three acts, specialized</h3>
+<p><strong>Define the state function:</strong> <code>dp(i)</code> = the answer for the prefix ending at i. <strong>Define the transition:</strong> write <code>dp(i)</code> as a combination of <code>dp(i-1)</code>, <code>dp(i-2)</code>, … choosing the operator from the question (max/min for best, + for count, or for possible). <strong>Compute the DP:</strong> fill left to right; since each state looks back only a bounded amount, keep the last few values for O(1) space.</p>
 <h3>Template</h3>
 <pre><code>prev2, prev1 = base, base
 for x in nums:

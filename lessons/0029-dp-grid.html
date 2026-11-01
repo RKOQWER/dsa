@@ -36,12 +36,12 @@
 <div class="callout derive">
   <span class="label">Derive it</span>
   <p><strong>Find the choice — but run it backwards.</strong> Ask not "where can I go?" but "how could I have <em>arrived</em> at cell <code>(r, c)</code>?" Since moves are only right or down, the only cells that lead into <code>(r, c)</code> are the one directly above <code>(r-1, c)</code> and the one directly to the left <code>(r, c-1)</code>.</p>
-  <p><strong>So the count of paths to a cell is the sum of the counts to the two cells that feed it:</strong></p>
+  <p><strong>So the state function is <code>dp(r, c)</code> = the count of paths to cell <code>(r, c)</code>, and the transition sums the two cells that feed it:</strong></p>
   <pre><code>dp[r][c] = dp[r-1][c] + dp[r][c-1]</code></pre>
   <p>with <code>dp</code> on the top row and left column equal to 1 (only one straight-line way to reach them). <strong>Spot the overlap:</strong> a recursive "count paths from here to the end" would revisit the same cell through many routes; because <code>dp[r][c]</code> is reused by both the cell below it and the cell to its right, caching the grid makes it O(m·n).</p>
 </div>
 
-<p><strong>The transferable shape:</strong> grid DP applies when each cell's answer depends on a fixed, small set of already-computed neighbor cells (classically up and left, sometimes up-left for diagonal moves). You fill the table in an order — row by row, left to right — that guarantees those neighbors are ready before you reach the cell. Because each cell only looks at the previous row and the current row's left neighbor, you can usually compress the table to a single row for O(n) space.</p>
+<p><strong>The transferable shape:</strong> grid DP applies when the state function is the cell <code>dp(r, c)</code> and the transition depends on a fixed, small set of already-computed neighbor cells (classically up and left, sometimes up-left for diagonal moves). You compute the DP by filling the table in an order — row by row, left to right — that guarantees those neighbors are ready before you reach the cell. Because each cell only looks at the previous row and the current row's left neighbor, you can usually compress the table to a single row for O(n) space.</p>
 
 <!-- WHEN / WHY -->
 <h2>When to reach for grid DP, and why</h2>
@@ -115,8 +115,8 @@ def minPathSum(grid):
 <h2 id="refcard">Reference card — Grid DP</h2>
 <h3>When, and why</h3>
 <p>Use it on a 2D grid asking for a best path cost, a count of paths, or a best region, with movement restricted to a few directions. Restricted movement keeps each cell's dependency set small and acyclic, so filling a table row by row computes every cell once in O(m·n) instead of searching exponentially many paths.</p>
-<h3>The move</h3>
-<p>Define <code>dp[r][c]</code> for the cell. Express it from the neighbors that feed it (up, left, sometimes up-left). Fill in an order that computes those neighbors first; compress to one row for O(n) space when only the previous row is needed. If the constraint looks forward, fill from the destination backward.</p>
+<h3>The three acts, specialized</h3>
+<p><strong>Define the state function:</strong> <code>dp(r, c)</code> = the answer for the cell. <strong>Define the transition:</strong> express <code>dp(r, c)</code> from the neighbors that feed it (up, left, sometimes up-left), combined by the operator the question demands; if the constraint looks forward, define the transition from the destination backward instead. <strong>Compute the DP:</strong> fill in an order that computes those neighbors first, and compress to one row for O(n) space when only the previous row is needed.</p>
 <h3>Template</h3>
 <pre><code>for r in range(m):
     for c in range(n):

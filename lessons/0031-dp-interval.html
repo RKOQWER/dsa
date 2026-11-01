@@ -38,7 +38,7 @@
   <p><strong>Find the choice: the LAST operation on the range.</strong> Over the range <code>[i, j]</code>, something is combined last — pick the split point <code>k</code> where the final combination happens. That split breaks the range into <code>[i, k]</code> and <code>[k+1, j]</code>, each a smaller interval of the identical problem, plus a cost for joining the two halves.</p>
   <pre><code>dp(i, j) = min over k in [i, j-1] of
              dp(i, k) + dp(k+1, j) + cost_of_joining(i, k, j)</code></pre>
-  <p><strong>Why a range must be the state:</strong> the cost of combining a sub-range depends on <em>both</em> its endpoints, not just its length or its start — so you cannot reduce it to a single index. <strong>Spot the overlap:</strong> the same sub-range <code>[i, k]</code> appears under many different outer splits, so caching on <code>(i, j)</code> turns the exponential number of parenthesizations into an O(n²) number of ranges, each costing O(n) to split — O(n³) total.</p>
+  <p><strong>Why the state function must take a range.</strong> Define <code>dp(i, j)</code> = the best cost over the range <code>[i, j]</code>. The cost of combining a sub-range depends on <em>both</em> its endpoints, not just its length or its start — so you cannot reduce the state to a single index. <strong>Spot the overlap:</strong> the same sub-range <code>[i, k]</code> appears under many different outer splits, so caching on <code>(i, j)</code> turns the exponential number of parenthesizations into an O(n²) number of ranges, each costing O(n) to split — O(n³) total.</p>
 </div>
 
 <p><strong>The transferable shape:</strong> interval DP applies when the answer for a range is built by choosing an element or a boundary <em>inside</em> the range to handle last, splitting it into two independent sub-ranges. The two recurring tricks are (1) iterate the split point <code>k</code> across the interval, and (2) fill the table by increasing range length so both halves are ready. Burst Balloons adds one twist: instead of splitting, you choose which balloon is burst <em>last</em>, because that balloon's neighbors are then the fixed boundaries <code>i-1</code> and <code>j+1</code>.</p>
@@ -118,8 +118,8 @@ def maxCoins(nums):
 <h2 id="refcard">Reference card — Interval / Partition DP</h2>
 <h3>When, and why</h3>
 <p>Use it when the subproblem is a contiguous range and the decision is where to split it, or which item in it to resolve last, after which the two pieces are independent. Endpoint-dependent combine cost forces the state to be the full range <code>(i, j)</code>; sub-ranges repeat across outer choices, so caching gives O(n²) states, usually O(n³) overall.</p>
-<h3>The move</h3>
-<p>Define <code>dp(i, j)</code> for the range. Iterate a split point <code>k</code> from i to j (or "k burst/resolved last"), combine <code>dp(i, k)</code> and <code>dp(k±1, j)</code> plus a join cost. Fill by increasing range length so both halves are ready.</p>
+<h3>The three acts, specialized</h3>
+<p><strong>Define the state function:</strong> <code>dp(i, j)</code> = the answer for the range <code>[i, j]</code> (the full range, because the combine cost is endpoint-dependent). <strong>Define the transition:</strong> iterate a split point <code>k</code> from i to j (or "k burst/resolved last") and combine <code>dp(i, k)</code> and <code>dp(k±1, j)</code> plus a join cost. <strong>Compute the DP:</strong> fill by increasing range length so both halves are ready before the range that needs them.</p>
 <h3>Template</h3>
 <pre><code>@cache
 def dp(i, j):

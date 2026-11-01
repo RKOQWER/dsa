@@ -12,7 +12,7 @@
 <span class="lesson-no">Lesson 32 of the course</span>
 <h1>DP on Trees &amp; Bitmask DP — two state shapes you haven't met yet</h1>
 
-<p>Two DP flavors that confuse people because the <em>state</em> looks unusual. In tree DP the subproblem is "a subtree rooted at a node," and you often carry an extra flag for the node's own choice. In bitmask DP the state is "which elements of a small set have been used," encoded as the bits of an integer. Both are ordinary DP once you accept the odd-looking state.</p>
+<p>Two DP flavors that confuse people because the <em>state function</em> looks unusual. The three acts are unchanged — define the state, define the transition, compute it — only the shape of act 1 is new. In tree DP the state is "a subtree rooted at a node," and you often carry an extra flag for the node's own choice. In bitmask DP the state is "which elements of a small set have been used," encoded as the bits of an integer. Both are ordinary DP once you accept the odd-looking state function.</p>
 
 <!-- SPACED RETRIEVAL -->
 <h2>Warm-up — recall (no peeking)</h2>
@@ -48,7 +48,7 @@
     rob_this  = node.val + L_skip + R_skip
     skip_this = max(L_rob, L_skip) + max(R_rob, R_skip)
     return (rob_this, skip_this)</code></pre>
-  <p>There is no explicit cache here because a tree has no overlapping subproblems across siblings — each subtree is visited once. The "DP" is the per-node optimal-substructure combine, not memoization. That's the defining feature of tree DP: <strong>the recursion structure is the tree itself, and the state is a small bundle per node.</strong></p>
+  <p>There is no explicit cache here, and that is not an exception to the three acts — it is act 3 doing its job. Acts 1 and 2 are unchanged: the state function is "the subtree at this node, returning a small (rob, skip) bundle," and the transition combines the children's bundles. Act 3 is simply <em>how you compute</em> that function, and here one post-order DFS already visits every subtree exactly once in dependency order, so you need neither memoization nor a table — the tree structure supplies the ordering for free. That is the whole point of keeping "compute the DP" as its own flexible act: <strong>the state and transition define the problem; computing it is whatever evaluation order the structure makes cheapest.</strong></p>
 </div>
 
 <!-- DERIVATION 2: BITMASK DP -->
@@ -58,7 +58,7 @@
 <div class="callout derive">
   <span class="label">Derive it — the set of used elements IS the state</span>
   <p><strong>Spot the waste in n! brute force:</strong> two different orderings that visit the same <em>set</em> of cities and end at the same city have identical remaining subproblems — the future only depends on "which cities are still unvisited" and "where I am now," not the exact order I visited the earlier ones. That's overlap.</p>
-  <p><strong>The insight:</strong> encode "which cities have been visited" as the bits of an integer <code>mask</code> (bit c set = city c visited). The state is <code>(mask, current_city)</code>. There are only <code>2ⁿ · n</code> such states, far fewer than n! orderings.</p>
+  <p><strong>The insight:</strong> encode "which cities have been visited" as the bits of an integer <code>mask</code> (bit c set = city c visited), and define the state function as <code>dp(mask, current_city)</code>. The transition tries every unvisited next city. There are only <code>2ⁿ · n</code> such states, far fewer than n! orderings.</p>
   <pre><code>from functools import cache
 def tsp(dist, n):
     @cache
@@ -142,10 +142,10 @@ def dp(mask, pos):
 
 <!-- REFERENCE -->
 <h2 id="refcard">Reference card — Tree DP &amp; Bitmask DP</h2>
-<h3>Tree DP — when and why</h3>
-<p>Use it when the input is a tree and a node's answer depends on its subtrees' optimal answers, often with a local include/exclude choice. One post-order DFS returning a small state bundle per node computes everything in O(nodes); the tree supplies the dependency order, so no explicit cache is needed.</p>
-<h3>Bitmask DP — when and why</h3>
-<p>Use it when you consider all subsets or orderings of a small set (n ≲ 20) and the future depends only on which elements are used. Encode the used set as integer bits for 2ⁿ·(extra) states instead of n! orderings; bit ops give O(1) transitions. Small n is the signal.</p>
+<h3>Tree DP — the three acts, specialized</h3>
+<p><strong>Define the state function:</strong> the subtree at a node, returning a small bundle of optimal sub-answers (often one value per local include/exclude choice). <strong>Define the transition:</strong> combine the children's bundles into this node's bundle. <strong>Compute the DP:</strong> one post-order DFS — the tree supplies the dependency order, so no explicit cache is needed, and it runs in O(nodes).</p>
+<h3>Bitmask DP — the three acts, specialized</h3>
+<p><strong>Define the state function:</strong> <code>dp(mask, pos)</code> where the bits of <code>mask</code> are the used elements of a small set (n ≲ 20) — use this when the future depends only on which elements are used, not their order. <strong>Define the transition:</strong> iterate the unset bits, recursing with <code>mask | (1 &lt;&lt; e)</code>; bit ops make each transition O(1). <strong>Compute the DP:</strong> memoize or tabulate the 2ⁿ·(extra) states — far fewer than n! orderings. Small n is the signal.</p>
 <h3>Templates</h3>
 <pre><code># tree: return (choiceA_best, choiceB_best) per node, combine at parent
 # bitmask: dp(mask, pos); iterate unset bits; recurse with mask | (1<<e)</code></pre>

@@ -40,7 +40,7 @@
     <li>If <code>a[i] == b[j]</code>, this character can safely be part of the common subsequence. Take it (+1) and advance both: <code>1 + dp(i+1, j+1)</code>.</li>
     <li>If they differ, at least one of them is not in the LCS. You don't know which, so try both and keep the better: <code>max(dp(i+1, j), dp(i, j+1))</code>.</li>
   </ul>
-  <p><strong>The state is the pair of positions</strong> <code>(i, j)</code>, because your progress through <em>both</em> strings determines the subproblem.</p>
+  <p><strong>The state function is the pair of positions</strong> <code>dp(i, j)</code>, because your progress through <em>both</em> strings determines the subproblem.</p>
   <pre><code>dp(i, j) = 1 + dp(i+1, j+1)            if a[i] == b[j]
          = max(dp(i+1, j), dp(i, j+1)) otherwise</code></pre>
   <p><strong>Spot the overlap:</strong> many different alignment paths reach the same <code>(i, j)</code>, so caching the pair collapses the exponential branching to an O(|a|·|b|) table — the same 2D grid as Lesson 29, now indexed by two strings.</p>
@@ -127,8 +127,8 @@ def editDistance(a, b):
 <h2 id="refcard">Reference card — String DP</h2>
 <h3>When, and why</h3>
 <p>Use it when you align, match, or transform one sequence against another (or a string against itself) and want a best length, a minimum edit count, or a yes/no match. The decision at each step depends only on the current pair of positions and advances them monotonically, so the subproblems form a 2D (i, j) grid fillable once in O(n·m) — collapsing exponentially many alignments.</p>
-<h3>The move</h3>
-<p>State is a pair of indices. Compare <code>a[i]</code> and <code>b[j]</code>: on a match, advance both (and +1 or free, per the question); on a mismatch, branch over the small set of moves (skip a, skip b, edit) and combine with max/min, +, or or. For palindromes, index one string from both ends.</p>
+<h3>The three acts, specialized</h3>
+<p><strong>Define the state function:</strong> <code>dp(i, j)</code> = the answer for the two suffixes (or the substring) from position i in one string and j in the other. <strong>Define the transition:</strong> compare <code>a[i]</code> and <code>b[j]</code> — on a match, advance both (and +1 or free, per the question); on a mismatch, branch over the small set of moves (skip a, skip b, edit) and combine with max/min, +, or or. For palindromes, index one string from both ends. <strong>Compute the DP:</strong> memoize or tabulate the (i, j) grid in O(n·m).</p>
 <h3>Template</h3>
 <pre><code>@cache
 def dp(i, j):

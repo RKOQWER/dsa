@@ -40,7 +40,7 @@
     <li>Leave it out: you solve the same problem on the remaining items <code>i+1…</code> with the same capacity.</li>
     <li>Take it (only if it fits): you gain <code>value[i]</code>, and solve the remaining items with capacity reduced by <code>weight[i]</code>.</li>
   </ul>
-  <p>The best is the max of the two. <strong>The state is therefore (which item we're deciding, how much capacity is left)</strong> — two numbers, because both the position AND the remaining budget affect the answer.</p>
+  <p>The transition takes the max of the two choices. <strong>So the state function is <code>dp(i, cap)</code> — which item we're deciding, how much capacity is left</strong> — two parameters, because both the position AND the remaining budget affect the answer.</p>
   <pre><code>dp(i, cap) = max(
     dp(i+1, cap),                                   # leave item i
     value[i] + dp(i+1, cap - weight[i])             # take it, if weight[i] <= cap
@@ -125,12 +125,14 @@ def coinChange(coins, amount):
 <h2 id="refcard">Reference card — Knapsack family</h2>
 <h3>When, and why</h3>
 <p>Use it when you have items and a budget (weight capacity, target sum, amount of money) and at each item you choose include-or-exclude. Because many choice sequences land on the same (index, remaining-budget) state, caching that pair turns the 2ⁿ decision tree into an O(items × budget) table. The defining feature is that <strong>the remaining budget must be part of the state</strong>.</p>
-<h3>The recurrence and its knobs</h3>
+<h3>The three acts, specialized</h3>
+<p><strong>Define the state function:</strong> <code>dp(i, cap)</code> = the best answer deciding items from <code>i</code> onward with <code>cap</code> budget left — the remaining budget MUST be a state parameter. <strong>Define the transition:</strong> the include-or-exclude choice, with these knobs:</p>
 <ul>
   <li><strong>0/1 (each item once):</strong> take-branch recurses on <code>i+1</code>.</li>
   <li><strong>Unbounded (reuse allowed):</strong> take-branch recurses on <code>i</code> (stay).</li>
   <li><strong>Best value:</strong> combine with max/min. <strong>Count ways:</strong> combine with +. <strong>Feasible?:</strong> combine with or.</li>
 </ul>
+<p><strong>Compute the DP:</strong> memoize on <code>(i, cap)</code> or tabulate over items × budget; many choice sequences land on the same <code>(i, cap)</code>, so caching turns the 2ⁿ tree into an O(items × budget) table.</p>
 <h3>Template</h3>
 <pre><code>@cache
 def dp(i, cap):
