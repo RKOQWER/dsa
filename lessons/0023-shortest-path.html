@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 23 — Shortest Path (BFS, Dijkstra, 0-1 BFS)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 4 · Graphs</p>
+<span class="lesson-no">Lesson 23 of the course</span>
+<h1>Shortest Path — one idea, three tools chosen by the edge weights</h1>
+
+<p>"Fewest steps," "cheapest route," "minimum time to reach" — all shortest-path questions. The right tool is decided by <strong>one thing: what the edge weights look like</strong>. This lesson derives why plain BFS already solves the unweighted case, why that breaks the moment edges have different costs, and how Dijkstra fixes it by always expanding the closest-known node first. We keep it to non-negative weights.</p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Recall from earlier lessons (no peeking)</h2>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. Why does plain BFS give the fewest <em>edges</em> to each node in an unweighted graph?</div>
+  <button class="opt" data-correct="true" data-fb="Yes — a FIFO queue pulls nodes out in increasing distance order, so the first time you reach a node is along a minimum-edge path.">The queue visits nodes in increasing distance order, so first arrival is shortest</button>
+  <button class="opt" data-correct="false" data-fb="DFS dives deep and does NOT visit in distance order, so it doesn't give shortest paths in general.">Because DFS explores deep first</button>
+  <button class="opt" data-correct="false" data-fb="Sorting edges isn't part of BFS at all.">Because the edges are sorted</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. In Lesson 10 you binary-searched a numeric answer when feasibility was monotone. The general lesson was…</div>
+  <button class="opt" data-correct="true" data-fb="Right — expand/choose in the order that guarantees correctness at first contact. Dijkstra reuses that spirit: always finalise the closest node first.">Process candidates in the order that makes the first valid one correct</button>
+  <button class="opt" data-correct="false" data-fb="Hashing wasn't the point of binary search on the answer.">Always hash the inputs first</button>
+  <button class="opt" data-correct="false" data-fb="Two pointers needs a directional signal; it wasn't the binary-search-on-answer lesson.">Use two pointers whenever an array appears</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving the three tools from the edge weights</h2>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Case 1 — every edge costs the same (unweighted).</strong> You already solved this in Lesson 21: BFS. Because the queue hands you nodes in order of increasing distance, the first time BFS reaches a node is via a fewest-edges path. Distance = number of edges, done. O(V + E).</p>
+  <p><strong>Case 2 — edges have different non-negative costs.</strong> Now BFS breaks: reaching a node in fewer <em>edges</em> no longer means fewer <em>total cost</em>. A 1-edge path of weight 100 is worse than a 3-edge path of weight 6. The FIFO order is the wrong order.</p>
+  <p><strong>Spot the waste / fix:</strong> what you actually want is to always process next the unfinalised node with the <em>smallest known total distance</em>. If you always expand the globally-closest frontier node, then at the moment you pop a node its shortest distance is settled — because every other route to it would have to go through a node that is at least as far, and (with non-negative weights) adding more edges can only increase cost. That ordering requirement is exactly what a <strong>min-priority-queue</strong> gives you.</p>
+  <p><strong>The insight (= Dijkstra):</strong> keep a min-heap keyed by "best distance found so far." Pop the closest node, and for each neighbour, if going through this node is cheaper than its current best, update it and push the new distance. The heap guarantees you finalise nodes in increasing distance order — BFS's correctness argument, generalised from "edge count" to "total weight." O(E log V).</p>
+  <p><strong>Case 3 — weights are only 0 or 1.</strong> You don't need a full heap. A 0-weight edge keeps you at the same distance, a 1-weight edge adds one. Use a <em>deque</em>: push 0-edges to the <strong>front</strong> and 1-edges to the <strong>back</strong>. This keeps the deque in nondecreasing distance order automatically — <strong>0-1 BFS</strong>, O(V + E), no log factor.</p>
+</div>
+
+<div class="callout derive">
+  <span class="label">What a priority queue (min-heap) is, in one paragraph</span>
+  <p>A min-heap is a container that always lets you remove the <em>smallest</em> item quickly. Python's <code>heapq</code> gives it to you on a plain list: <code>heappush(h, (dist, node))</code> inserts, and <code>heappop(h)</code> removes and returns the pair with the smallest <code>dist</code> — each in O(log n). You don't need to have studied heaps as a topic yet; just treat it as "a pile that always hands back the cheapest thing." That single capability is the whole engine of Dijkstra.</p>
+</div>
+
+<h3>The deeper principle (so it transfers)</h3>
+<p>All three tools are the same traversal with the same correctness idea — <em>finalise nodes in order of increasing distance</em> — and they differ only in the structure that enforces that order. When every step costs the same, a plain queue already enforces it (BFS). When steps cost 0 or 1, a double-ended queue enforces it (0-1 BFS). When steps have arbitrary non-negative costs, a min-priority-queue enforces it (Dijkstra). So the recognition move is: <strong>look at the edge weights, and pick the cheapest structure that still processes nodes closest-first.</strong> A grid where each move costs one is unweighted — reach for BFS, not Dijkstra; using a heap there is correct but needlessly slow.</p>
+
+<!-- ============ WHEN TO USE ============ -->
+<h2>When to use which, and why</h2>
+
+<h3>Use plain BFS when every move/edge has the same cost</h3>
+<p>If the problem counts steps, moves, or levels and each one is equal (a maze where each step is one, a word ladder where each edit is one), the number of edges is the distance, so BFS's level-by-level order already yields the shortest path with no weights to track. This is the common grid case and the cheapest option — don't reach for a heap.</p>
+
+<h3>Use Dijkstra when edges have different non-negative costs</h3>
+<p>When moving between nodes has varying positive cost (travel time, price, effort, risk) and you want the minimum total to reach a target, you need to always expand the closest-so-far node, which requires the min-priority-queue. Dijkstra is the default for "cheapest route with non-negative weights." It does <em>not</em> work with negative edges, because the assumption "adding edges can't decrease cost" fails.</p>
+
+<h3>Use 0-1 BFS when every edge weight is 0 or 1</h3>
+<p>Some grid problems let you take certain moves for free (weight 0) and others at cost 1 (for example, you may change direction for free but pay to break a wall). A full heap is overkill; a deque that front-loads the 0-cost moves keeps distances ordered and runs in linear time. Recognise it by "two kinds of moves, one free and one costing one."</p>
+
+<!-- ============ TEMPLATE ============ -->
+<h2>The template (reproduce from memory)</h2>
+<pre><code>from collections import deque
+import heapq
+
+# Unweighted shortest path: BFS
+def bfs_dist(start, adj, n):
+    dist = [float('inf')] * n
+    dist[start] = 0
+    q = deque([start])
+    while q:
+        u = q.popleft()
+        for v in adj[u]:                 # each edge costs 1
+            if dist[u] + 1 < dist[v]:
+                dist[v] = dist[u] + 1
+                q.append(v)
+    return dist
+
+# Non-negative weights: Dijkstra with a min-heap
+def dijkstra(start, adj, n):             # adj[u] = list of (v, weight)
+    dist = [float('inf')] * n
+    dist[start] = 0
+    pq = [(0, start)]                    # (distance so far, node)
+    while pq:
+        d, u = heapq.heappop(pq)         # always the closest unfinalised node
+        if d > dist[u]:
+            continue                     # stale entry, skip
+        for v, w in adj[u]:
+            if d + w < dist[v]:
+                dist[v] = d + w
+                heapq.heappush(pq, (dist[v], v))
+    return dist
+
+# Weights are 0 or 1: 0-1 BFS with a deque
+def zero_one_bfs(start, adj, n):         # adj[u] = list of (v, weight in {0,1})
+    dist = [float('inf')] * n
+    dist[start] = 0
+    dq = deque([start])
+    while dq:
+        u = dq.popleft()
+        for v, w in adj[u]:
+            if dist[u] + w < dist[v]:
+                dist[v] = dist[u] + w
+                dq.appendleft(v) if w == 0 else dq.append(v)
+    return dist
+</code></pre>
+<p>Compact reference at the <a href="#refcard">bottom</a>.</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — read the weights, then pick the tool</h2>
+<p>Problems only; ask me if you get stuck.</p>
+
+<ol>
+  <li><strong>Shortest Path in Binary Matrix</strong> (Medium) — <a href="https://leetcode.com/problems/shortest-path-in-binary-matrix/">link</a>. Equal-cost moves → BFS.</li>
+  <li><strong>Rotting Oranges</strong> (Medium) — <a href="https://leetcode.com/problems/rotting-oranges/">link</a>. Multi-source BFS.</li>
+  <li><strong>Network Delay Time</strong> (Medium) — <a href="https://leetcode.com/problems/network-delay-time/">link</a>. The canonical Dijkstra.</li>
+  <li><strong>Path With Minimum Effort</strong> (Medium) — <a href="https://leetcode.com/problems/path-with-minimum-effort/">link</a>. Dijkstra where "distance" is max edge on the path.</li>
+  <li><strong>Cheapest Flights Within K Stops</strong> (Medium) — <a href="https://leetcode.com/problems/cheapest-flights-within-k-stops/">link</a>. Weighted, with a hop limit.</li>
+  <li><strong>Path with Maximum Probability</strong> (Medium) — <a href="https://leetcode.com/problems/path-with-maximum-probability/">link</a>. Dijkstra on a max-product.</li>
+  <li><strong>Minimum Cost to Make at Least One Valid Path in a Grid</strong> (Hard) — <a href="https://leetcode.com/problems/minimum-cost-to-make-at-least-one-valid-path-in-a-grid/">link</a>. Classic 0-1 BFS.</li>
+  <li><strong>Number of Ways to Arrive at Destination</strong> (Medium) — <a href="https://leetcode.com/problems/number-of-ways-to-arrive-at-destination/">link</a>. Dijkstra + path counting.</li>
+  <li><strong>Find the City With the Smallest Number of Neighbors at a Threshold Distance</strong> (Medium) — <a href="https://leetcode.com/problems/find-the-city-with-the-smallest-number-of-neighbors-at-a-threshold-distance/">link</a>.</li>
+  <li><strong>Minimum Obstacle Removal to Reach Corner</strong> (Hard) — <a href="https://leetcode.com/problems/minimum-obstacle-removal-to-reach-corner/">link</a>. Another 0-1 BFS in disguise.</li>
+  <li><strong>Swim in Rising Water</strong> (Hard) — <a href="https://leetcode.com/problems/swim-in-rising-water/">link</a>. Dijkstra-style frontier where cost is the running max.</li>
+  <li><strong>Word Ladder</strong> (Hard) — <a href="https://leetcode.com/problems/word-ladder/">link</a>. Unweighted shortest path by BFS.</li>
+</ol>
+
+<!-- ============ COMPOSITION (hard) ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>Swim in Rising Water</strong> (Hard 778) composes a <em>Dijkstra-style shortest-path frontier</em> (this lesson) with <em>graph modeling</em> (Lesson 20); it also rhymes with the "minimize the maximum" idea from <em>binary search on the answer</em> (Lesson 10), giving you two valid routes.</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The problem:</strong> on an n×n grid of elevations, water rises over time; at time t you can stand on any cell with elevation ≤ t. Find the earliest time you can travel from the top-left to the bottom-right (moving to 4-neighbours).</p>
+  <p><strong>Piece 1 — graph modeling (Lesson 20):</strong> cells are nodes, 4-adjacency gives edges. But the "cost" of a path is not a sum — it's the <em>maximum elevation</em> you must cross along the path. You want the path whose maximum elevation is smallest.</p>
+  <p><strong>Piece 2 — Dijkstra adapted (this lesson):</strong> Dijkstra's correctness only needs that extending a path can't make its cost smaller. "Running maximum" satisfies that (adding a cell can only keep or raise the max), so use the same closest-first machinery, but define a node's cost as <code>max(current path max, cell elevation)</code> instead of a sum. Pop the frontier cell with the smallest running-max; the first time you pop the destination, that running-max is the answer.</p>
+  <p><strong>Alternate route (Lesson 10):</strong> binary-search the answer time t, and for each t run a plain BFS/DFS over cells with elevation ≤ t to test "is the destination reachable?" Feasibility is monotone in t, so binary search applies — a clean example of two taught patterns solving the same Hard.</p>
+  <pre><code>import heapq
+def swimInWater(grid):
+    n = len(grid)
+    pq = [(grid[0][0], 0, 0)]            # (running max elevation, r, c)
+    seen = {(0, 0)}
+    while pq:
+        t, r, c = heapq.heappop(pq)      # Piece 2: smallest running-max first
+        if (r, c) == (n-1, n-1):
+            return t
+        for dr, dc in ((1,0),(-1,0),(0,1),(0,-1)):   # Piece 1: 4-neighbours
+            nr, nc = r+dr, c+dc
+            if 0 <= nr < n and 0 <= nc < n and (nr, nc) not in seen:
+                seen.add((nr, nc))
+                heapq.heappush(pq, (max(t, grid[nr][nc]), nr, nc))</code></pre>
+  <p>The Hard = (model the grid as a graph) + (Dijkstra's closest-first frontier, with cost redefined as a running maximum) — or alternatively (binary search the answer) + (plain reachability BFS).</p>
+</details>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If you're unsure whether a problem is BFS or Dijkstra, tell me the edge weights (all equal? varying? only 0/1?) and we'll pick the cheapest structure that still processes closest-first.
+</div>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Shortest Path</h2>
+<p>The compressed version.</p>
+
+<h3>The one decision: look at the edge weights</h3>
+<p>All three are the same traversal with the same correctness idea — <strong>finalise nodes in increasing distance order</strong> — differing only in the structure that enforces it.</p>
+<ul>
+  <li><strong>All edges equal (unweighted) → BFS</strong>, O(V + E). The FIFO queue already visits in distance order, so first arrival is shortest. Default for grids where each move costs one.</li>
+  <li><strong>Non-negative varying weights → Dijkstra</strong>, O(E log V). A min-priority-queue always pops the closest unfinalised node, so its distance is settled on pop. Fails with negative edges.</li>
+  <li><strong>Weights are 0 or 1 → 0-1 BFS</strong>, O(V + E). A deque: push 0-edges to the front, 1-edges to the back, keeping distances ordered without a heap.</li>
+</ul>
+
+<h3>Priority queue, briefly</h3>
+<p>A min-heap (Python <code>heapq</code>) always hands back the smallest item in O(log n): <code>heappush(h,(dist,node))</code> / <code>heappop(h)</code>. That "always return the cheapest" is the engine of Dijkstra.</p>
+
+<h3>Dijkstra template</h3>
+<pre><code>dist = [inf]*n; dist[s] = 0; pq = [(0, s)]
+while pq:
+    d, u = heappop(pq)
+    if d > dist[u]: continue           # skip stale
+    for v, w in adj[u]:
+        if d + w < dist[v]:
+            dist[v] = d + w
+            heappush(pq, (dist[v], v))</code></pre>
+
+<h3>Classic problems</h3>
+<p>Shortest Path in Binary Matrix (M, BFS), Network Delay Time (M, Dijkstra), Path With Minimum Effort (M), Cheapest Flights Within K Stops (M), Min Cost Valid Path in Grid (H, 0-1 BFS), Swim in Rising Water (H, Dijkstra or binary-search-on-answer).</p>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> CP-Algorithms Dijkstra and 0-1 BFS — <a href="https://cp-algorithms.com/graph/dijkstra.html">cp-algorithms.com/graph/dijkstra</a> and <a href="https://cp-algorithms.com/graph/01_bfs.html">/graph/01_bfs</a>.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 22: Topological Sort</span>
+  <span>Next: Lesson 24 — Union-Find →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

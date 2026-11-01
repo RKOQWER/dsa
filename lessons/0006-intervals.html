@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 6 — Interval Patterns (derived, not memorized)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 1 · Linear structures</p>
+<span class="lesson-no">Lesson 06 of the course</span>
+<h1>Interval Patterns — derived from the chaos of unsorted ranges</h1>
+
+<p>By the end you'll derive why sorting is the universal first move for interval problems, know when to sort by start versus by endpoint, understand the sweep-line view, and reach a <strong>Hard</strong>.</p>
+
+<!-- ============ SPACED WARM-UP ============ -->
+<h2>Warm-up — recall from earlier lessons (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. Your brute force has an inner loop that only searches among already-seen elements. What's the fix?</div>
+  <button class="opt" data-correct="true" data-fb="Right — replace the inner search with an O(1) hashmap recall, keyed on the problem's notion of sameness.">Replace the inner search with an O(1) hashmap lookup</button>
+  <button class="opt" data-correct="false" data-fb="A window needs contiguity and incremental state; it isn't the general fix for 'search the past'.">Always use a sliding window</button>
+  <button class="opt" data-correct="false" data-fb="Sorting may help some problems but doesn't address 'recall among seen elements'.">Sort the array first</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. A difference array makes a range update cheap by editing how many positions per update?</div>
+  <button class="opt" data-correct="false" data-fb="Editing every position is exactly what it avoids.">Every position in the range</button>
+  <button class="opt" data-correct="true" data-fb="Yes — just two: +v at the start and −v at one past the end, then integrate once.">Two: the start and one past the end</button>
+  <button class="opt" data-correct="false" data-fb="One edit can't encode both where the add begins and where it ends.">One: the midpoint</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving the interval pattern from scratch</h2>
+<p>Take the cleanest case. You're given a list of intervals <code>[start, end]</code> in arbitrary order; merge all overlapping ones.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Brute force:</strong> repeatedly compare every interval against every other, merging any pair that overlaps, and loop until no more merges happen. That's at least O(n²) and the "loop until stable" control flow is error-prone.</p>
+  <p><strong>Spot the waste:</strong> the chaos comes entirely from the intervals being in random order — you never know where an overlapping partner might be, so you must check all pairs. But overlap has structure you're ignoring: if two intervals overlap, one's start lies inside the other. The disorder is forcing you to search in both directions when the relationship is fundamentally about ordering on the number line.</p>
+  <p><strong>The insight (= the pattern):</strong> sort the intervals by start. Now any interval can only overlap with the one immediately before it in sorted order — because everything earlier has a start ≤ the current start, so the only question is whether the <em>running merged</em> interval's end reaches the current start. Walk left to right, extending the current merged interval's end when the next interval starts before that end, otherwise closing it off and opening a new one. One sort plus one linear pass: O(n log n). Sorting converted a two-directional search into a single forward sweep.</p>
+</div>
+
+<h3>The deeper principle (so it transfers)</h3>
+<p>Almost every interval problem begins with a sort, because sorting imposes the one-directional structure that makes overlaps local — once sorted, you only ever compare an interval with the "current" context rather than with all others. The decision that remains is <em>what to sort by</em>. Sort by <strong>start</strong> when you are merging or sweeping left to right and asking "does this one overlap what I've accumulated so far." Sort by <strong>end</strong> when you are greedily keeping as many non-overlapping intervals as possible (activity selection), because finishing earliest leaves the most room for the rest. A third view, the <strong>sweep line</strong>, forgets intervals as objects and instead sorts their endpoints as <code>+1</code> (an interval starts) and <code>−1</code> (an interval ends) events; running a counter across the sorted events tells you how many intervals are active at any moment, which answers "maximum overlap" questions directly.</p>
+
+<!-- ============ SIGNALS ============ -->
+<h2>When to use each variant, and why</h2>
+
+<h3>Sort by start, then sweep to merge or coalesce</h3>
+<p>You sort by start when the task is to merge overlapping intervals, insert a new interval into a sorted set, or detect whether any two overlap. After sorting, you keep a single running interval and compare each next interval's start against the running end; if it reaches inside, you extend, otherwise you emit the running one and start fresh. It works because, in start order, the only possible overlap for the current interval is with the accumulated block to its left.</p>
+
+<h3>Sort by end for greedy non-overlap selection</h3>
+<p>You sort by end when you want the maximum number of mutually non-overlapping intervals, or the minimum number of intervals to remove so the rest don't overlap. You repeatedly take the interval that finishes earliest among those still compatible, because an early finish frees up the most remaining room. It works by an exchange argument: any optimal solution can be rewritten to start with the earliest-finishing interval without getting worse.</p>
+
+<h3>Sweep line over endpoint events</h3>
+<p>You use a sweep line when the question is about how many intervals are simultaneously active — maximum concurrent meetings, the point of greatest overlap, or free gaps across many schedules. You turn each interval into a start event (<code>+1</code>) and an end event (<code>−1</code>), sort all events by position, and run a counter; the counter's peak is the maximum overlap, and stretches where it is zero are the gaps. It works because the count of active intervals only changes at endpoints, so scanning the sorted endpoints reconstructs the whole timeline.</p>
+
+<!-- ============ TEMPLATE ============ -->
+<h2>The template (reproduce from memory)</h2>
+<pre><code># Merge overlapping intervals: sort by start, sweep once
+def merge(intervals):
+    intervals.sort(key=lambda iv: iv[0])
+    out = [intervals[0]]
+    for s, e in intervals[1:]:
+        if s <= out[-1][1]:          # overlaps the running block
+            out[-1][1] = max(out[-1][1], e)
+        else:
+            out.append([s, e])
+    return out
+
+# Max non-overlapping intervals: sort by end, greedy keep
+def max_nonoverlap(intervals):
+    intervals.sort(key=lambda iv: iv[1])
+    count = 0
+    cur_end = float('-inf')
+    for s, e in intervals:
+        if s >= cur_end:             # compatible with last kept
+            count += 1
+            cur_end = e
+    return count
+
+# Sweep line: maximum number of overlapping intervals
+def max_overlap(intervals):
+    events = []
+    for s, e in intervals:
+        events.append((s, 1))        # start adds one
+        events.append((e, -1))       # end removes one
+    events.sort()
+    active = best = 0
+    for _, delta in events:
+        active += delta
+        best = max(best, active)
+    return best
+</code></pre>
+<p>A compact reference is at the <a href="#refcard">bottom of this lesson</a>.</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only. Solve them yourself; ask me if you get stuck.</p>
+<ol>
+  <li><strong>Meeting Rooms</strong> (Easy, premium) — <a href="https://leetcode.com/problems/meeting-rooms/">link</a></li>
+  <li><strong>Summary Ranges</strong> (Easy) — <a href="https://leetcode.com/problems/summary-ranges/">link</a></li>
+  <li><strong>Merge Intervals</strong> (Medium) — <a href="https://leetcode.com/problems/merge-intervals/">link</a></li>
+  <li><strong>Insert Interval</strong> (Medium) — <a href="https://leetcode.com/problems/insert-interval/">link</a></li>
+  <li><strong>Non-overlapping Intervals</strong> (Medium) — <a href="https://leetcode.com/problems/non-overlapping-intervals/">link</a></li>
+  <li><strong>Meeting Rooms II</strong> (Medium, premium) — <a href="https://leetcode.com/problems/meeting-rooms-ii/">link</a></li>
+  <li><strong>Minimum Number of Arrows to Burst Balloons</strong> (Medium) — <a href="https://leetcode.com/problems/minimum-number-of-arrows-to-burst-balloons/">link</a></li>
+  <li><strong>Interval List Intersections</strong> (Medium) — <a href="https://leetcode.com/problems/interval-list-intersections/">link</a></li>
+  <li><strong>Car Pooling</strong> (Medium) — <a href="https://leetcode.com/problems/car-pooling/">link</a></li>
+  <li><strong>My Calendar I</strong> (Medium) — <a href="https://leetcode.com/problems/my-calendar-i/">link</a></li>
+  <li><strong>My Calendar II</strong> (Medium) — <a href="https://leetcode.com/problems/my-calendar-ii/">link</a></li>
+  <li><strong>Employee Free Time</strong> (Hard, premium) — <a href="https://leetcode.com/problems/employee-free-time/">link</a></li>
+  <li><strong>Data Stream as Disjoint Intervals</strong> (Hard) — <a href="https://leetcode.com/problems/data-stream-as-disjoint-intervals/">link</a></li>
+</ol>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>Employee Free Time</strong> (Hard) — <a href="https://leetcode.com/problems/employee-free-time/">link</a> — composes interval merging (this lesson) with a merge of sorted sequences (the converging/merge idea from Lesson 2's two-pointer family).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The ask:</strong> given each employee's sorted busy intervals, return the gaps where <em>everyone</em> is free. Common free time is the complement of the union of all busy intervals.</p>
+  <p><strong>Piece A — flatten and order:</strong> you need all busy intervals in a single start-sorted stream. Since each employee's list is already sorted, combining them is a k-way merge — the same "advance the pointer on the smallest front element" logic as merging sorted lists, a direct relative of Lesson 2's two-pointer merge.</p>
+  <p><strong>Piece B — merge intervals and read the gaps:</strong> sweep the start-sorted busy intervals exactly as in this lesson, coalescing overlaps into maximal busy blocks. Whenever the next block starts strictly after the running block ends, the space between them is a free interval for everyone. Emit those gaps.</p>
+  <p>The Hard = (k-way merge of sorted interval lists) + (merge-overlapping sweep reading gaps). Both halves are patterns you already hold.</p>
+</details>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Interval Patterns</h2>
+
+<h3>When to use each, and why</h3>
+<ul>
+  <li><strong>Sort by start, sweep to merge.</strong> Merging overlaps, inserting an interval, detecting any overlap. Keep one running interval; extend it when the next start reaches inside its end, else emit and restart. In start order, overlap can only be with the accumulated block to the left.</li>
+  <li><strong>Sort by end, greedy keep.</strong> Maximum non-overlapping set, or minimum removals. Repeatedly take the earliest-finishing compatible interval, because finishing early leaves the most room — provable by an exchange argument.</li>
+  <li><strong>Sweep line over endpoint events.</strong> Maximum concurrent intervals, peak overlap, or free gaps. Turn intervals into <code>+1</code> start and <code>−1</code> end events, sort, run a counter; the peak is max overlap, zeros are gaps, because the active count only changes at endpoints.</li>
+</ul>
+
+<h3>The one-line reason it works</h3>
+<p>Sorting imposes one-directional order on the number line, which makes overlap <em>local</em> — so a two-directional all-pairs search collapses into a single forward sweep comparing each interval only with the current running context.</p>
+
+<h3>Discrimination test</h3>
+<p>The whole family depends on being able to order the intervals; the only real decision is the sort key (start for merging, end for greedy non-overlap). If the problem is about counting how many are active at once rather than coalescing them, switch to the endpoint sweep-line view.</p>
+
+<h3>Templates (Python)</h3>
+<pre><code># merge
+intervals.sort(key=lambda iv: iv[0])
+out = [intervals[0]]
+for s, e in intervals[1:]:
+    if s <= out[-1][1]: out[-1][1] = max(out[-1][1], e)
+    else: out.append([s, e])
+
+# sweep line (max overlap)
+events = [(s,1) for s,e in iv] + [(e,-1) for s,e in iv]
+events.sort(); active = best = 0
+for _, d in events: active += d; best = max(best, active)</code></pre>
+
+<h3>Complexity and classic problems</h3>
+<p>O(n log n) dominated by the sort, O(n) after. Classic set: Merge Intervals (Medium), Insert Interval (Medium), Non-overlapping Intervals (Medium, sort-by-end greedy), Meeting Rooms II (Medium, sweep line), Employee Free Time (Hard, composed with k-way merge).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> Unsure whether to sort by start or end for a given problem, or why the earliest-finish greedy is optimal? Ask and we'll reason through the exchange argument.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> the interval merging and greedy-selection patterns are covered cleanly in NeetCode's "Intervals" section — <a href="https://neetcode.io/courses">neetcode.io/courses</a>.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 5: Hashing Patterns</span>
+  <span>Next: Lesson 7 — Cyclic &amp; In-place Array Tricks →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

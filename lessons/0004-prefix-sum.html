@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 4 — Prefix Sum (derived, not memorized)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 1 · Linear structures</p>
+<span class="lesson-no">Lesson 04 of the course</span>
+<h1>Prefix Sum &amp; Difference Arrays — derived from repeated re-summing</h1>
+
+<p>By the end you'll derive prefix sums from the waste in answering range queries, see why pairing a prefix sum with a hashmap cracks "subarray sum equals k", understand the difference-array trick for range updates, and reach a <strong>Hard</strong>.</p>
+
+<!-- ============ SPACED WARM-UP ============ -->
+<h2>Warm-up — recall from earlier lessons (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. What single question tells you whether a sliding window should be fixed-size or variable-size?</div>
+  <button class="opt" data-correct="true" data-fb="Right — if the width is handed to you it's fixed; if the width is what you're optimizing, it's variable.">Is the window width given, or is it the thing I'm optimizing?</button>
+  <button class="opt" data-correct="false" data-fb="Signedness matters for whether windows apply at all, not for choosing the flavor.">Are the numbers positive or negative?</button>
+  <button class="opt" data-correct="false" data-fb="Both flavors can use a hashmap; that doesn't distinguish them.">Does the problem involve characters or numbers?</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. Sliding window needs one key property of its running state to be O(n). Which?</div>
+  <button class="opt" data-correct="false" data-fb="Sortedness isn't required for windows; it's a two-pointer/binary-search signal.">The array must be sorted</button>
+  <button class="opt" data-correct="true" data-fb="Yes — the state must update incrementally as one element enters or leaves. If you'd have to rescan the window, windows buy nothing.">The state must update cheaply as one element enters or leaves</button>
+  <button class="opt" data-correct="false" data-fb="Windows handle both; that's not the gatekeeper.">The window must contain distinct values</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving prefix sums from scratch</h2>
+<p>Take the cleanest case. You're given an array and must answer many queries of the form "what is the sum of <code>a[i..j]</code>?"</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Brute force:</strong> for each query, loop from <code>i</code> to <code>j</code> and add. One query is O(n); with <code>q</code> queries it's O(n·q), which is brutal when both are large.</p>
+  <p><strong>Spot the waste:</strong> two overlapping queries — say <code>a[0..5]</code> and <code>a[0..7]</code> — recompute almost the same sum. The second only needs <code>a[6] + a[7]</code> more than the first, yet brute force re-adds all eight. Every query redundantly re-adds a prefix that other queries already covered. The repeated work is the summing of shared prefixes.</p>
+  <p><strong>The insight (= the pattern):</strong> precompute one array <code>P</code> where <code>P[k]</code> is the sum of the first <code>k</code> elements (<code>P[0] = 0</code>). Then the sum of <code>a[i..j]</code> is simply <code>P[j+1] − P[i]</code> — the whole-to-<code>j</code> sum minus the whole-to-just-before-<code>i</code> sum. Building <code>P</code> is one O(n) pass, and every query afterward is O(1) subtraction. You traded re-summing per query for subtracting two precomputed totals.</p>
+</div>
+
+<h3>The deeper principle (so it transfers)</h3>
+<p>A prefix array turns a <em>range</em> question into the <em>difference of two point lookups</em>. That is the whole idea, and it generalizes: a prefix of sums answers range-sum queries; a prefix of XORs answers range-XOR queries; a 2D prefix answers rectangle-sum queries. The complementary trick, the <strong>difference array</strong>, runs the idea backwards — when you must apply many <em>range updates</em> (add a value to every element of <code>a[i..j]</code>) and only read the array at the end, you record <code>+v</code> at index <code>i</code> and <code>−v</code> at index <code>j+1</code>, then take a prefix sum once to realize all updates in O(n) total instead of O(n) per update.</p>
+
+<!-- ============ SIGNALS ============ -->
+<h2>When to use it, and the flavors</h2>
+
+<h3>Prefix sums for range queries</h3>
+<p>You reach for a prefix sum when the problem fires many range-aggregate questions at a static array — repeated "sum of this subarray" or "sum of this rectangle" — and the array itself does not change between queries. You spend one linear pass building the prefix totals, after which each query is a constant-time subtraction. It works because a range aggregate is exactly the difference between two cumulative totals, so once the totals are stored, no scanning is ever needed again.</p>
+
+<h3>Prefix sum plus a hashmap — derive it by fixing bottlenecks</h3>
+<p>Use this combination when you must count contiguous subarrays with a target sum <code>k</code> (or a sum divisible by <code>k</code>), especially when numbers may be <em>negative</em>. Negatives rule out a sliding window: its running sum is no longer monotonic, so moving a pointer does not reliably move you toward the target. You do not need to memorize a trick; follow the waste until the right tool becomes inevitable.</p>
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>1. Try the obvious way.</strong> Pick every start <code>i</code> and end <code>j</code>, then add the elements from <code>i</code> through <code>j</code>. This repeatedly walks the same stretch of array, costing O(n<sup>3</sup>) in the most direct version. Even if you improve the inner sum bookkeeping, checking every pair of endpoints is still O(n<sup>2</sup>). The bottleneck is re-adding the same elements.</p>
+  <p><strong>2. Stop re-counting with prefix sums.</strong> Let <code>P[t]</code> be the sum of everything before index <code>t</code>, with <code>P[0] = 0</code>. Then the sum from <code>i</code> through <code>j</code> is <code>P[j + 1] − P[i]</code>: the total at the end minus the total just before the start. You can now update a running prefix total in one pass instead of re-adding a subarray. But at each current prefix, scanning all older prefixes to find a match still costs O(n<sup>2</sup>) overall.</p>
+  <p><strong>3. Reframe the search with algebra.</strong> At the current endpoint, let the running total be <code>P[current]</code>. A subarray ending here sums to <code>k</code> exactly when <code>P[current] − P[old] = k</code>. Isolate the unknown history value: <code>P[old] = P[current] − k</code>. You are no longer checking every old prefix for some vague relationship; you are hunting one exact number. If the current total is <code>15</code> and <code>k</code> is <code>7</code>, the only prefix you need is <code>8</code>.</p>
+  <p><strong>4. Use the tool for exact history lookup.</strong> A hashmap records how many times each earlier prefix sum occurred. At each position, look up <code>running − k</code> and add that frequency to the answer, because every matching old prefix starts one valid subarray. Then record the current running total for later positions. Seed the map with <code>{0: 1}</code> so a prefix that itself equals <code>k</code> is counted. Lookup and update are O(1) on average, making the full scan O(n).</p>
+</div>
+<p><strong>The chain to remember:</strong> do not re-add sections → use prefix sums; do not scan backward through old prefix sums → rearrange the equation to find the one value needed; need to find that exact value immediately → store prefix frequencies in a hashmap. The hashmap stores <em>counts</em>, not just presence, because the same old prefix can occur several times and each occurrence creates a different valid subarray.</p>
+
+<h3>Difference array for range updates</h3>
+<p>You reach for a difference array when you must apply a batch of "add <code>v</code> to every element in range <code>[i, j]</code>" operations and only need to read the final array afterward. Instead of touching every element of each range, you mark the start and one-past-the-end of each update, then sweep once. It works because adding to a contiguous range affects the <em>differences</em> between neighbors at only two points — the entry and the exit — so recording those two edits and integrating once reproduces every update.</p>
+
+<!-- ============ TEMPLATE ============ -->
+<h2>The template (reproduce from memory)</h2>
+<pre><code># 1D prefix sum: range-sum queries in O(1) after O(n) build
+def build_prefix(a):
+    P = [0] * (len(a) + 1)
+    for i, x in enumerate(a):
+        P[i + 1] = P[i] + x
+    return P
+# sum of a[i..j] inclusive:
+#   P[j + 1] - P[i]
+
+# Count subarrays summing to k (handles negatives) via prefix + hashmap
+from collections import defaultdict
+def subarrays_sum_k(a, k):
+    seen = defaultdict(int)
+    seen[0] = 1                  # empty prefix
+    run = 0
+    count = 0
+    for x in a:
+        run += x
+        count += seen[run - k]   # a prefix equal to run-k closes a subarray = k
+        seen[run] += 1
+    return count
+
+# Difference array: apply range adds, then integrate once
+def range_adds(n, updates):      # updates: list of (i, j, v)
+    diff = [0] * (n + 1)
+    for i, j, v in updates:
+        diff[i] += v
+        diff[j + 1] -= v
+    out = [0] * n
+    run = 0
+    for idx in range(n):
+        run += diff[idx]
+        out[idx] = run
+    return out
+</code></pre>
+<p>A compact reference is at the <a href="#refcard">bottom of this lesson</a>.</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only. Solve them yourself; ask me if you get stuck.</p>
+<ol>
+  <li><strong>Running Sum of 1d Array</strong> (Easy) — <a href="https://leetcode.com/problems/running-sum-of-1d-array/">link</a></li>
+  <li><strong>Find Pivot Index</strong> (Easy) — <a href="https://leetcode.com/problems/find-pivot-index/">link</a></li>
+  <li><strong>Range Sum Query - Immutable</strong> (Easy) — <a href="https://leetcode.com/problems/range-sum-query-immutable/">link</a></li>
+  <li><strong>Subarray Sum Equals K</strong> (Medium) — <a href="https://leetcode.com/problems/subarray-sum-equals-k/">link</a></li>
+  <li><strong>Contiguous Array</strong> (Medium) — <a href="https://leetcode.com/problems/contiguous-array/">link</a></li>
+  <li><strong>Subarray Sums Divisible by K</strong> (Medium) — <a href="https://leetcode.com/problems/subarray-sums-divisible-by-k/">link</a></li>
+  <li><strong>Product of Array Except Self</strong> (Medium) — <a href="https://leetcode.com/problems/product-of-array-except-self/">link</a></li>
+  <li><strong>Range Sum Query 2D - Immutable</strong> (Medium) — <a href="https://leetcode.com/problems/range-sum-query-2d-immutable/">link</a></li>
+  <li><strong>Corporate Flight Bookings</strong> (Medium) — <a href="https://leetcode.com/problems/corporate-flight-bookings/">link</a></li>
+  <li><strong>Car Pooling</strong> (Medium) — <a href="https://leetcode.com/problems/car-pooling/">link</a></li>
+  <li><strong>Continuous Subarray Sum</strong> (Medium) — <a href="https://leetcode.com/problems/continuous-subarray-sum/">link</a></li>
+  <li><strong>Maximum Size Subarray Sum Equals k</strong> (Medium, premium) — <a href="https://leetcode.com/problems/maximum-size-subarray-sum-equals-k/">link</a></li>
+  <li><strong>Count of Range Sum</strong> (Hard) — <a href="https://leetcode.com/problems/count-of-range-sum/">link</a></li>
+</ol>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>Subarray Sum Equals K</strong> (Medium) escalates to the <strong>Count of Range Sum</strong> (Hard) — <a href="https://leetcode.com/problems/count-of-range-sum/">link</a>. The Hard composes the prefix-sum reformulation (this lesson) with the two-pointer / merge-counting idea (Lesson 2's converging-pointer logic over a sorted order).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The ask:</strong> count subarrays whose sum lies in <code>[lower, upper]</code>. First reformulate with prefix sums: a subarray <code>a[i..j]</code> has sum in range exactly when <code>P[j+1] − P[i]</code> is in <code>[lower, upper]</code>, i.e. for each right endpoint <code>P[j+1]</code> you need the count of earlier prefixes <code>P[i]</code> lying in <code>[P[j+1] − upper, P[j+1] − lower]</code>.</p>
+  <p><strong>Piece A — prefix sums:</strong> turn "sum of a subarray in range" into "count earlier prefix values inside a shifted range." Pure Lesson 4.</p>
+  <p><strong>Piece B — counting over a sorted order:</strong> counting how many earlier prefixes fall in a numeric window is done during a merge sort of the prefix array. While merging two sorted halves, for each left-half prefix you advance two pointers over the right half to count values inside <code>[lower', upper']</code> — the same two-pointer convergence idea from Lesson 2, now used to count rather than to find a pair. Each level of the merge is linear, giving O(n log n).</p>
+  <p>The Hard = (prefix-sum reformulation) + (two-pointer counting inside a merge sort). Name the two halves and the intimidating part dissolves.</p>
+</details>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Prefix Sum &amp; Difference Array</h2>
+
+<h3>When to use it, and why</h3>
+<ul>
+  <li><strong>Prefix sums for range queries.</strong> Many "sum of this subarray/rectangle" questions on a static array. Build cumulative totals once; each query is the difference of two totals in O(1), because a range aggregate is exactly that difference.</li>
+  <li><strong>Prefix + hashmap for counting subarrays.</strong> "How many subarrays sum to k / are divisible by k", especially with negative numbers (which break sliding windows). Store counts of each running prefix; a subarray equal to k ending now exists wherever a prefix equal to <code>run − k</code> appeared before — a lookup, not a scan.</li>
+  <li><strong>Difference array for range updates.</strong> Many "add v to range [i, j]" updates, read only at the end. Record <code>+v</code> at <code>i</code> and <code>−v</code> at <code>j+1</code>, then prefix-sum once, because a range add only changes neighbor differences at the two edges.</li>
+</ul>
+
+<h3>The one-line reason it works</h3>
+<p>A prefix array converts a range question into the difference of two point values; a difference array runs that in reverse so many range updates collapse into two point edits each.</p>
+
+<h3>Discrimination test</h3>
+<p>Prefix sums assume the array is static between queries; if elements are updated between queries you need a Fenwick/segment tree instead. The prefix+hashmap counting trick is specifically what you reach for when sliding window fails due to negative numbers.</p>
+
+<h3>Templates (Python)</h3>
+<pre><code># range sum
+P[0] = 0; P[k+1] = P[k] + a[k]
+# sum a[i..j] = P[j+1] - P[i]
+
+# count subarrays == k (negatives ok)
+seen = {0: 1}; run = 0; count = 0
+for x in a:
+    run += x
+    count += seen.get(run - k, 0)
+    seen[run] = seen.get(run, 0) + 1</code></pre>
+
+<h3>Complexity and classic problems</h3>
+<p>Build O(n), query O(1); 2D build O(mn), query O(1). Classic set: Range Sum Query - Immutable (Easy), Subarray Sum Equals K (Medium), Product of Array Except Self (Medium), Corporate Flight Bookings (Medium, difference array), Count of Range Sum (Hard).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> Unsure why negatives break the window but not the prefix+hashmap trick, or how the 2D rectangle formula drops out? Ask and we'll derive it.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> the prefix-sum and the prefix+hashmap patterns are explained clearly at <a href="https://leetcode.com/explore/">LeetCode Explore</a> arrays cards and in NeetCode's "Subarray Sum Equals K" walkthrough — <a href="https://neetcode.io/courses">neetcode.io/courses</a>.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 3: Sliding Window</span>
+  <span>Next: Lesson 5 — Hashing Patterns →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

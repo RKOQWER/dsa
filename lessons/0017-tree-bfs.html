@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 17 — Tree BFS (level-order and the "process one level at a time" trick)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 3 · Recursion-driven patterns</p>
+<span class="lesson-no">Lesson 17 of the course</span>
+<h1>Tree BFS — deriving level-order and why "snapshot the queue size" is the whole trick</h1>
+
+<p>Some tree problems care about <em>depth levels</em>, not subtree structure: the right-side view, the level with the largest sum, zig-zag order, the minimum depth to a leaf. DFS fights these; BFS answers them directly. By the end you'll derive level-order traversal from scratch and know the one line — snapshotting the queue length — that separates "visit all nodes" from "process one level at a time".</p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Warm-up — recall from earlier lessons (no peeking)</h2>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. In tree DFS (Lesson 16), what are the two design questions you ask at every node?</div>
+  <button class="opt" data-correct="true" data-fb="Right — 'what do I ask my children' and 'what do I return to my parent' drive every tree-DFS solution.">What do I ask my children, and what do I return to my parent</button>
+  <button class="opt" data-correct="false" data-fb="Pivot choice is Quickselect/quicksort (Lesson 12), not tree DFS.">Which pivot to choose and which half to recurse</button>
+  <button class="opt" data-correct="false" data-fb="Window bounds belong to sliding window (Lesson 3), not tree traversal.">Where to place the left and right window bounds</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. From Lesson 8, what data structure gives O(1) removal from the front and is the backbone of BFS?</div>
+  <button class="opt" data-correct="false" data-fb="A plain list's pop(0) is O(n) because it shifts every element — too slow for a BFS frontier.">A Python list using pop(0)</button>
+  <button class="opt" data-correct="true" data-fb="Yes — a deque gives O(1) popleft and append, the right frontier structure for BFS.">A deque (double-ended queue)</button>
+  <button class="opt" data-correct="false" data-fb="A set has no front/back ordering, so it can't act as an ordered frontier.">An unordered set</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving level-order traversal from scratch</h2>
+
+<p>Take <strong>return the node values level by level</strong>, e.g. <code>[[3], [9, 20], [15, 7]]</code>. DFS naturally goes deep first, so it visits 3, then 9, then its children — it crosses levels, mixing them up. We need the opposite: finish a whole level before touching the next.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>The waste in DFS here:</strong> DFS's call stack explores one branch to the bottom before the next, so nodes at the same depth are visited far apart in time. To group by level, we'd have to tag every node with its depth and bucket afterward — awkward.</p>
+  <p><strong>The insight:</strong> use a <em>queue</em> (first-in-first-out). If you enqueue the root, then repeatedly dequeue a node and enqueue its children, nodes come out in exactly non-decreasing depth order — a node's children are always enqueued after every node of the current level. That already gives a flat level-order visit. To get them <em>grouped</em> into levels, add one move: before processing, record how many nodes are in the queue <em>right now</em> — that count is exactly the current level's size. Process precisely that many, and everything you enqueue meanwhile belongs to the next level.</p>
+  <pre><code>from collections import deque
+def levelOrder(root):
+    if not root: return []
+    q, result = deque([root]), []
+    while q:
+        level_size = len(q)          # SNAPSHOT: size of THIS level
+        level = []
+        for _ in range(level_size):  # process exactly this level
+            node = q.popleft()
+            level.append(node.val)
+            if node.left:  q.append(node.left)
+            if node.right: q.append(node.right)
+        result.append(level)
+    return result</code></pre>
+  <p>The single line <code>level_size = len(q)</code> taken <em>before</em> the inner loop is the entire trick. Without it you still visit every node, but you lose the level boundaries. With it, each inner loop handles one complete level. Every "per-level" tree problem is this skeleton with a different thing computed inside the inner loop.</p>
+</div>
+
+<!-- ============ WHEN & WHY ============ -->
+<h2>When to reach for tree BFS, and why it works</h2>
+<p>Reach for BFS on a tree when the question is about <strong>levels or depth-order</strong>: group values by level, the average or max or sum of each level, the rightmost/leftmost node of each level (the side views), zig-zag order, the width of the tree, or the <em>minimum</em> depth to any leaf. The tell is any phrasing involving "level", "depth", "each row", "closest/shortest to the root", or a view from one side. It works because a FIFO queue releases nodes in non-decreasing depth order, and snapshotting the queue size at the start of each round carves that stream into exact level boundaries — one O(n) pass, each node enqueued and dequeued once.</p>
+<p>Choose BFS over DFS specifically when <strong>distance from the root drives the answer</strong>. Minimum depth is the sharpest example: BFS finds the first leaf it reaches and can stop immediately, whereas DFS might plunge down a long branch before finding a shallow leaf elsewhere. Conversely, when the answer depends on subtree structure rather than level (heights, path sums, balance), DFS (Lesson 16) is the better fit. Many problems can be done either way; let the question's own words — "level/depth" vs "subtree/path" — pick for you.</p>
+
+<div class="callout trap">
+  <span class="label">Trap — computing the size inside the loop</span>
+  <p>The level size must be captured <em>before</em> the inner loop starts. If you write <code>for _ in range(len(q))</code> and then append children inside that same evaluation, you're fine because <code>range(len(q))</code> is evaluated once — but if you instead loop <code>while len(q) &gt; 0</code> and try to detect level ends by re-reading <code>len(q)</code>, you'll merge levels, because the queue now holds a mix of this level and the next. Snapshot once, then drain exactly that many.</p>
+</div>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — at least 10, easy → hard</h2>
+<p>Each is the level-order skeleton with a different inner computation. Solve them; ask me if you get stuck.</p>
+<ol>
+  <li><strong>Binary Tree Level Order Traversal</strong> (Medium) — <a href="https://leetcode.com/problems/binary-tree-level-order-traversal/">link</a></li>
+  <li><strong>Average of Levels in Binary Tree</strong> (Easy) — <a href="https://leetcode.com/problems/average-of-levels-in-binary-tree/">link</a></li>
+  <li><strong>Minimum Depth of Binary Tree</strong> (Easy — BFS can early-exit) — <a href="https://leetcode.com/problems/minimum-depth-of-binary-tree/">link</a></li>
+  <li><strong>Binary Tree Right Side View</strong> (Medium) — <a href="https://leetcode.com/problems/binary-tree-right-side-view/">link</a></li>
+  <li><strong>Binary Tree Zigzag Level Order Traversal</strong> (Medium) — <a href="https://leetcode.com/problems/binary-tree-zigzag-level-order-traversal/">link</a></li>
+  <li><strong>Binary Tree Level Order Traversal II</strong> (Medium) — <a href="https://leetcode.com/problems/binary-tree-level-order-traversal-ii/">link</a></li>
+  <li><strong>Find Largest Value in Each Tree Row</strong> (Medium) — <a href="https://leetcode.com/problems/find-largest-value-in-each-tree-row/">link</a></li>
+  <li><strong>Populating Next Right Pointers in Each Node</strong> (Medium) — <a href="https://leetcode.com/problems/populating-next-right-pointers-in-each-node/">link</a></li>
+  <li><strong>Maximum Width of Binary Tree</strong> (Medium — index the positions) — <a href="https://leetcode.com/problems/maximum-width-of-binary-tree/">link</a></li>
+  <li><strong>All Nodes Distance K in Binary Tree</strong> (Medium — tree-as-graph + BFS) — <a href="https://leetcode.com/problems/all-nodes-distance-k-in-binary-tree/">link</a></li>
+  <li><strong>Vertical Order Traversal of a Binary Tree</strong> (Hard) — <a href="https://leetcode.com/problems/vertical-order-traversal-of-a-binary-tree/">link</a></li>
+</ol>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>Vertical Order Traversal of a Binary Tree</strong> (Hard 987) — <a href="https://leetcode.com/problems/vertical-order-traversal-of-a-binary-tree/">link</a> — composes BFS level-order (this lesson) with <em>hashing / grouping by key</em> (Lesson 5) and <em>sorting with a custom comparator</em> (Lesson 11). Try it before opening the decomposition.</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p>Output nodes grouped by their <em>column</em> (left-to-right), and within a column sorted by row then by value. Columns are defined by assigning the root column 0, a left child column−1, a right child column+1.</p>
+  <p><strong>Piece A (BFS level-order, this lesson):</strong> traverse the tree level by level, carrying each node's <code>(row, col)</code> alongside it in the queue. Processing in BFS order means that, within one column, nodes arrive in non-decreasing row order for free.</p>
+  <p><strong>Piece B (hashing / grouping, Lesson 5):</strong> bucket every node into a hashmap keyed by its column: <code>columns[col].append((row, val))</code>. This is the exact "group items by a computed key" move from the hashing lesson.</p>
+  <p><strong>Piece C (custom-comparator sort, Lesson 11):</strong> the tie-break rule — same column and same row, order by value — means each column's list must be sorted by <code>(row, value)</code>, and the columns themselves emitted in increasing column index. That's a sort with a composite key, straight from the sorting lesson.</p>
+  <pre><code>from collections import deque, defaultdict
+def verticalTraversal(root):
+    columns = defaultdict(list)          # hashing/grouping (Lesson 5)
+    q = deque([(root, 0, 0)])            # (node, row, col) — BFS (this lesson)
+    while q:
+        node, r, c = q.popleft()
+        if node:
+            columns[c].append((r, node.val))
+            q.append((node.left,  r + 1, c - 1))
+            q.append((node.right, r + 1, c + 1))
+    result = []
+    for c in sorted(columns):            # columns left to right
+        col_sorted = sorted(columns[c])  # custom (row, value) sort (Lesson 11)
+        result.append([val for _, val in col_sorted])
+    return result</code></pre>
+  <p>The Hard = (BFS carrying coordinates) + (group-by-key hashing) + (composite-key sort). Three patterns you already own, stacked. <strong>Name the pieces and the Hard stops being hard.</strong></p>
+</details>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If you're unsure whether a tree problem wants BFS or DFS, tell me its exact wording — the presence of "level/depth/row/side" versus "subtree/path/height" almost always decides it, and I'll walk you through which and why.
+</div>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Tree BFS</h2>
+<p>The compressed version. A 2-minute re-read should reload the whole pattern.</p>
+
+<h3>When to use it, and why</h3>
+<p>Use on tree problems about levels or depth-order: group by level, per-level average/max/sum, side views, zig-zag, width, and minimum depth. It works because a FIFO queue releases nodes in non-decreasing depth order, and snapshotting the queue size each round splits that stream into exact levels — O(n), each node enqueued/dequeued once. Prefer BFS over DFS when distance from the root drives the answer (minimum depth can early-exit); prefer DFS when the answer depends on subtree structure.</p>
+
+<h3>The one trick</h3>
+<p>Take <code>level_size = len(q)</code> <em>before</em> the inner loop, then process exactly that many nodes. That single snapshot converts "visit all nodes" into "process one level at a time". Carry extra state (row/col, index) in the queue tuple when the problem needs it.</p>
+
+<h3>Template</h3>
+<pre><code>from collections import deque
+q = deque([root])
+while q:
+    size = len(q)                 # snapshot the level
+    for _ in range(size):
+        node = q.popleft()
+        # ... compute for this node ...
+        if node.left:  q.append(node.left)
+        if node.right: q.append(node.right)</code></pre>
+
+<h3>Trap</h3>
+<p>Snapshot the level size once; don't re-read <code>len(q)</code> mid-level, or this level and the next merge.</p>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> NeetCode's "Level Order Traversal (BFS)" video — <a href="https://neetcode.io/courses">neetcode.io/courses</a> — derives the snapshot trick cleanly. For vertical order, read the LeetCode official editorial for the coordinate + sort composition.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 16: Tree DFS</span>
+  <span>Next: Lesson 18 — BST Patterns →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

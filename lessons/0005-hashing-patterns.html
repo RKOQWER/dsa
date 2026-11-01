@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 5 — Hashing Patterns (derived, not memorized)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 1 · Linear structures</p>
+<span class="lesson-no">Lesson 05 of the course</span>
+<h1>Hashing Patterns — derived from the cost of searching</h1>
+
+<p>By the end you'll derive why a hashmap collapses nested scans, know the four everyday hashing moves (seen-set, frequency map, grouping by a canonical key, complement lookup), and push to a <strong>Hard</strong>.</p>
+
+<!-- ============ SPACED WARM-UP ============ -->
+<h2>Warm-up — recall from earlier lessons (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. Why does "count subarrays summing to k" with negative numbers rule out a sliding window?</div>
+  <button class="opt" data-correct="true" data-fb="Right — with negatives the running sum isn't monotonic, so shrinking the window isn't guaranteed to restore validity. Prefix sum + hashmap handles it instead.">The running sum isn't monotonic, so shrinking doesn't reliably fix the window</button>
+  <button class="opt" data-correct="false" data-fb="Window size isn't the issue; the loss of monotonic sum behavior is.">Negative numbers make the window too large</button>
+  <button class="opt" data-correct="false" data-fb="Windows don't require sortedness in the first place.">The array becomes unsorted</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. A prefix sum converts a range-sum query into what?</div>
+  <button class="opt" data-correct="false" data-fb="No rescanning is involved — that's the whole point of precomputing.">A rescan of the subarray</button>
+  <button class="opt" data-correct="true" data-fb="Yes — sum of a[i..j] = P[j+1] − P[i], the difference of two precomputed totals, in O(1).">The difference of two precomputed cumulative totals</button>
+  <button class="opt" data-correct="false" data-fb="Sorting isn't part of prefix sums.">A sorted lookup</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving the hashmap move from scratch</h2>
+<p>Take the cleanest case. Unsorted array; return indices of the two numbers that sum to a target.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Brute force:</strong> for each element <code>x</code>, scan the rest of the array looking for <code>target − x</code>. That inner scan is O(n), so the whole thing is O(n²).</p>
+  <p><strong>Spot the waste:</strong> the inner loop is doing a <em>search</em> — "is <code>target − x</code> present, and where?" — against elements you have already walked past. You are re-searching the same seen elements again and again. The repeated cost is membership-and-location lookup over a growing set of things you've already seen.</p>
+  <p><strong>The insight (= the pattern):</strong> a hashmap answers "have I seen value <code>v</code>, and at what index?" in O(1). So walk once; for each <code>x</code>, ask the map for its complement <code>target − x</code>. If present, you're done; otherwise record <code>x → its index</code> and continue. The O(n) inner search collapses to an O(1) lookup, so the whole algorithm is O(n). The hashmap converted "search the past" into "recall the past instantly."</p>
+</div>
+
+<h3>The deeper principle (so it transfers)</h3>
+<p>Any time your brute force contains an inner loop whose only job is to <em>find</em> or <em>count</em> something among elements you have already processed, a hashmap can replace that inner loop with an O(1) recall. The art is choosing the right <strong>key</strong>: the key must be whatever makes two items "the same" for the purpose of the problem. If equality is on raw value, the key is the value. If two strings count as equal when they're anagrams, the key is their canonical form (sorted letters, or a letter-count signature). Picking the key that encodes the problem's notion of sameness is the whole skill; the lookup is then automatic.</p>
+
+<!-- ============ SIGNALS ============ -->
+<h2>When to use it, and the four everyday moves</h2>
+
+<h3>Seen-set for membership and duplicates</h3>
+<p>You use a set when the only question is "have I encountered this exact thing before?" — detecting duplicates, checking whether a complement exists, or testing membership in a reference collection. You add each item as you go and test future items against the set. It works because a set answers presence in O(1), turning a nested "is it anywhere earlier" scan into a single pass.</p>
+
+<h3>Frequency map for counting</h3>
+<p>You use a frequency map when the answer depends on <em>how many times</em> each value appears — finding the majority element, checking whether two strings use the same letters, or detecting whether a window contains enough of each required character. You tally counts in one pass, then read or compare the tallies. It works because counting-by-key replaces repeated re-counting scans with a single accumulation.</p>
+
+<h3>Grouping by a canonical key</h3>
+<p>You use grouping when many items should be bucketed by some notion of equivalence that isn't their literal value — grouping anagrams, grouping points by slope, grouping strings by shape. You compute a canonical key for each item (the thing that is identical across the group) and append the item to that key's bucket. It works because the canonical key makes "belongs to the same group" an exact dictionary match, so one pass partitions everything.</p>
+
+<h3>Complement / offset lookup</h3>
+<p>You use a complement lookup when, for each element, there is a specific <em>other</em> value whose earlier presence solves the problem — the <code>target − x</code> of two-sum, the <code>run − k</code> of subarray-sum counting, a matching bracket, a needed remainder. You store what you've seen keyed so that the needed partner is a direct lookup. It works because the relationship between the current element and its solving partner is a closed-form key, so finding the partner is O(1) rather than a search.</p>
+
+<!-- ============ TEMPLATE ============ -->
+<h2>The template (reproduce from memory)</h2>
+<pre><code># Complement lookup: two-sum on an unsorted array, return indices
+def two_sum(a, target):
+    seen = {}                       # value -> index
+    for i, x in enumerate(a):
+        if target - x in seen:
+            return [seen[target - x], i]
+        seen[x] = i
+    return []
+
+# Frequency map: are two strings anagrams?
+from collections import Counter
+def is_anagram(s, t):
+    return Counter(s) == Counter(t)
+
+# Grouping by canonical key: group anagrams together
+from collections import defaultdict
+def group_anagrams(words):
+    groups = defaultdict(list)
+    for w in words:
+        key = tuple(sorted(w))      # canonical form shared by anagrams
+        groups[key].append(w)
+    return list(groups.values())
+
+# Seen-set: first duplicate
+def first_duplicate(a):
+    seen = set()
+    for x in a:
+        if x in seen:
+            return x
+        seen.add(x)
+    return None
+</code></pre>
+<p>A compact reference is at the <a href="#refcard">bottom of this lesson</a>.</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only. Solve them yourself; ask me if you get stuck.</p>
+<ol>
+  <li><strong>Two Sum</strong> (Easy) — <a href="https://leetcode.com/problems/two-sum/">link</a></li>
+  <li><strong>Contains Duplicate</strong> (Easy) — <a href="https://leetcode.com/problems/contains-duplicate/">link</a></li>
+  <li><strong>Valid Anagram</strong> (Easy) — <a href="https://leetcode.com/problems/valid-anagram/">link</a></li>
+  <li><strong>Majority Element</strong> (Easy) — <a href="https://leetcode.com/problems/majority-element/">link</a></li>
+  <li><strong>Intersection of Two Arrays</strong> (Easy) — <a href="https://leetcode.com/problems/intersection-of-two-arrays/">link</a></li>
+  <li><strong>Group Anagrams</strong> (Medium) — <a href="https://leetcode.com/problems/group-anagrams/">link</a></li>
+  <li><strong>Top K Frequent Elements</strong> (Medium) — <a href="https://leetcode.com/problems/top-k-frequent-elements/">link</a></li>
+  <li><strong>Longest Consecutive Sequence</strong> (Medium) — <a href="https://leetcode.com/problems/longest-consecutive-sequence/">link</a></li>
+  <li><strong>4Sum II</strong> (Medium) — <a href="https://leetcode.com/problems/4sum-ii/">link</a></li>
+  <li><strong>Subarray Sum Equals K</strong> (Medium) — <a href="https://leetcode.com/problems/subarray-sum-equals-k/">link</a></li>
+  <li><strong>Insert Delete GetRandom O(1)</strong> (Medium) — <a href="https://leetcode.com/problems/insert-delete-getrandom-o1/">link</a></li>
+  <li><strong>First Missing Positive</strong> (Hard) — <a href="https://leetcode.com/problems/first-missing-positive/">link</a></li>
+  <li><strong>Substring with Concatenation of All Words</strong> (Hard) — <a href="https://leetcode.com/problems/substring-with-concatenation-of-all-words/">link</a></li>
+</ol>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>Substring with Concatenation of All Words</strong> (Hard) — <a href="https://leetcode.com/problems/substring-with-concatenation-of-all-words/">link</a> — composes a frequency map (this lesson) with a sliding window (Lesson 3).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The ask:</strong> find every starting index in <code>s</code> where a concatenation of all the given equal-length words (in any order) begins. "Contains exactly these words, each the right number of times, in a contiguous stretch" smells like a window with a multiset-equality check.</p>
+  <p><strong>Piece A — frequency map:</strong> represent the required words as a <code>Counter</code>. The window is valid when the words it covers match that counter exactly. Comparing multisets by key is the hashing move from this lesson.</p>
+  <p><strong>Piece B — sliding window at word granularity:</strong> because all words share one length <code>L</code>, slide a window that advances <code>L</code> characters at a time, adding the word entering and removing the word leaving, updating a running counter incrementally — exactly the grow/shrink machine of Lesson 3, but stepping by whole words. Run it from each of the <code>L</code> possible offsets so every alignment is covered.</p>
+  <p>The Hard = (frequency-map equality) + (sliding window stepping by word length). Both halves are things you already own.</p>
+</details>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Hashing Patterns</h2>
+
+<h3>When to use it, and why</h3>
+<ul>
+  <li><strong>Seen-set.</strong> The question is pure membership — "have I encountered this exact thing before?" Add as you go, test future items against the set; O(1) presence replaces a nested earlier-scan.</li>
+  <li><strong>Frequency map.</strong> The answer depends on how many times each value appears. Tally counts in one pass, then read or compare them, instead of recounting repeatedly.</li>
+  <li><strong>Grouping by canonical key.</strong> Items must be bucketed by an equivalence that isn't their literal value (anagrams, slopes). Compute the shared canonical key and append; one pass partitions everything.</li>
+  <li><strong>Complement / offset lookup.</strong> Each element has a specific partner value whose earlier presence solves the problem (<code>target − x</code>, <code>run − k</code>). Store seen items keyed so the partner is a direct O(1) lookup.</li>
+</ul>
+
+<h3>The one-line reason it works</h3>
+<p>A hashmap replaces an inner loop that searches or counts among already-seen elements with an O(1) recall, so an O(n²) nested scan collapses to a single O(n) pass — provided you key on the problem's true notion of sameness.</p>
+
+<h3>Discrimination test</h3>
+<p>Hashing gives you presence, count, and grouping in O(1) but destroys order and magnitude comparisons. If the problem needs "nearest smaller", ordering, or range queries, a hashmap alone won't do — reach for a sorted structure, a monotonic stack, or a prefix sum instead. Choosing the key is the real work; if you can't define a key that captures "sameness", hashing isn't the tool.</p>
+
+<h3>Templates (Python)</h3>
+<pre><code># complement lookup
+seen = {}
+for i, x in enumerate(a):
+    if target - x in seen: return [seen[target-x], i]
+    seen[x] = i
+
+# group by canonical key
+groups = defaultdict(list)
+for item in items:
+    groups[key(item)].append(item)</code></pre>
+
+<h3>Complexity and classic problems</h3>
+<p>Typically O(n) time, O(n) space. Classic set: Two Sum (Easy), Group Anagrams (Medium), Top K Frequent Elements (Medium), Longest Consecutive Sequence (Medium), Substring with Concatenation of All Words (Hard, composed with sliding window).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> Struggling to pick the right key, or unsure when hashing can't replace ordering? Bring the problem and we'll find the key together.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> NeetCode's "Arrays &amp; Hashing" section is the cleanest free coverage — <a href="https://neetcode.io/courses">neetcode.io/courses</a>.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 4: Prefix Sum</span>
+  <span>Next: Lesson 6 — Intervals →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

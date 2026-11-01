@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 25 — Minimum Spanning Tree &amp; Advanced Graphs</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 4 · Graphs</p>
+<span class="lesson-no">Lesson 25 of the course</span>
+<h1>Minimum Spanning Tree — the cheapest way to connect everything</h1>
+
+<p>When a problem asks for the <strong>minimum total cost to connect all nodes</strong> (wire every house, link every city), you want a minimum spanning tree: a cycle-free subset of edges that connects every node at least total weight. This lesson derives why a simple greedy — "take the cheapest edge that doesn't create a cycle" — is provably optimal, giving you Kruskal's and its twin Prim's. We also meet bridges/articulation points lightly, as the "which connection is critical?" idea.</p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Recall from earlier lessons (no peeking)</h2>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. While adding undirected edges one by one, both endpoints of the new edge already share a Union-Find root. That edge…</div>
+  <button class="opt" data-correct="true" data-fb="Yes — connecting two already-connected nodes closes a cycle, so it's redundant.">closes a cycle (is redundant)</button>
+  <button class="opt" data-correct="false" data-fb="It can't merge two groups — they're already the same group.">merges two separate groups</button>
+  <button class="opt" data-correct="false" data-fb="Sharing a root is exactly the connected case, not disconnected.">connects two disconnected parts</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. Dijkstra always expands next the node with the smallest known distance because…</div>
+  <button class="opt" data-correct="true" data-fb="Right — with non-negative weights, once it's the closest unfinalised node its distance can't improve, so it's final.">once it's the closest unfinalised node, its distance is settled</button>
+  <button class="opt" data-correct="false" data-fb="Edge count isn't what Dijkstra optimises; total weight is.">it has the fewest edges</button>
+  <button class="opt" data-correct="false" data-fb="Dijkstra doesn't sort all edges up front.">all edges were pre-sorted</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving the MST greedy from first principles</h2>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>The task:</strong> connect all V nodes using some of the weighted edges, with minimum total weight. The result must be connected and have no cycle (a cycle means one edge is wasteful) — so it's a tree with exactly V−1 edges.</p>
+  <p><strong>Greedy attempt:</strong> sort edges from cheapest to most expensive and add them one by one, <em>skipping any edge whose two endpoints are already connected</em> (that edge would only create a cycle without connecting anything new). Stop when you've added V−1 edges.</p>
+  <p><strong>Why is this optimal? (the cut argument):</strong> consider any point mid-process and any way of splitting the nodes into two sides with no chosen edge crossing. The cheapest edge that crosses that split <em>must</em> be in some minimum spanning tree — because if an MST didn't use it, you could swap it in for a more expensive crossing edge and get a lighter tree, contradiction. Adding edges cheapest-first and skipping cycles always adds exactly such a safe crossing edge, so greed never regrets. That's <strong>Kruskal's algorithm</strong>, and the cycle-skip test is precisely a Union-Find check (Lesson 24).</p>
+  <p><strong>The twin view (Prim's):</strong> instead of sorting all edges, grow one tree outward from a start node: repeatedly add the cheapest edge that leaves the current tree to a node not yet in it. A min-priority-queue of boundary edges gives you that cheapest crossing edge each step — the same "cheapest crossing edge is safe" principle, applied to a single growing component instead of many.</p>
+</div>
+
+<h3>The deeper principle (so it transfers)</h3>
+<p>MST problems announce themselves as "connect everything at minimum total cost." The choice between the two algorithms is practical, not conceptual: <strong>Kruskal's</strong> (sort edges + Union-Find) is simplest when the graph is given as an edge list and is sparse; <strong>Prim's</strong> (grow from a seed with a min-heap) is natural when the graph is dense or already in adjacency form. Both rest on one fact — the cheapest edge crossing any cut is safe to take — so if you can see the problem as "a cut I must bridge as cheaply as possible," you can rederive either. The related "critical connection" idea (bridges and articulation points) asks the opposite question: which single edge or node, if removed, <em>disconnects</em> the graph — found with a single DFS that tracks how far back each subtree can reach.</p>
+
+<!-- ============ WHEN TO USE ============ -->
+<h2>When to reach for MST (and the bridge idea), and why</h2>
+
+<h3>Use an MST when you must connect all nodes at minimum total cost</h3>
+<p>Whenever the goal is to link every item together and minimise the sum of chosen connection costs (cables, roads, pipes, merging points by distance), you want a minimum spanning tree. The giveaway is "connect all" plus "minimum total" — not shortest path between two specific nodes, but cheapest overall connectivity.</p>
+
+<h3>Choose Kruskal's for edge lists, Prim's for dense/adjacency graphs</h3>
+<p>Kruskal's sorts all edges once (O(E log E)) and uses Union-Find to skip cycle-forming edges, which is clean when you already have an edge list and the graph is sparse. Prim's keeps a frontier of candidate edges in a min-heap and grows a single tree (O(E log V)), which avoids sorting everything and suits dense graphs or a ready adjacency list. They produce the same minimum weight.</p>
+
+<h3>Use the bridges / articulation-point DFS when the question is "what's critical?"</h3>
+<p>If a problem asks which connections are essential — an edge whose removal splits the network (a bridge), or a node whose removal does (an articulation point) — a single DFS that records each node's discovery time and the earliest-discovered node its subtree can reach answers it in O(V + E). This is the "critical connections in a network" shape.</p>
+
+<!-- ============ TEMPLATE ============ -->
+<h2>The template (reproduce from memory)</h2>
+<pre><code>import heapq
+
+# Kruskal's MST — needs the DSU from Lesson 24
+def kruskal(n, edges):                 # edges: list of (weight, u, v)
+    edges.sort()                       # cheapest first
+    dsu = DSU(n)
+    total, used = 0, 0
+    for w, u, v in edges:
+        if dsu.union(u, v):            # union returns False if it would make a cycle
+            total += w
+            used += 1
+            if used == n - 1:          # a tree has exactly n-1 edges
+                break
+    return total if used == n - 1 else None   # None = graph not connectable
+
+# Prim's MST — grow from node 0 with a min-heap
+def prim(n, adj):                      # adj[u] = list of (weight, v)
+    visited = [False] * n
+    pq = [(0, 0)]                      # (edge weight into node, node)
+    total = 0
+    taken = 0
+    while pq and taken < n:
+        w, u = heapq.heappop(pq)
+        if visited[u]:
+            continue                   # stale boundary edge
+        visited[u] = True
+        total += w
+        taken += 1
+        for ew, v in adj[u]:
+            if not visited[v]:
+                heapq.heappush(pq, (ew, v))
+    return total if taken == n else None
+</code></pre>
+<p>Compact reference at the <a href="#refcard">bottom</a>.</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — spot "connect all at min cost" vs "which edge is critical"</h2>
+<p>Problems only; ask me if you get stuck.</p>
+
+<ol>
+  <li><strong>Min Cost to Connect All Points</strong> (Medium) — <a href="https://leetcode.com/problems/min-cost-to-connect-all-points/">link</a>. The canonical MST; build the edge weights as Manhattan distances.</li>
+  <li><strong>Connecting Cities With Minimum Cost</strong> (Medium) — <a href="https://leetcode.com/problems/connecting-cities-with-minimum-cost/">link</a>.</li>
+  <li><strong>Min Cost to Supply Water</strong> (Hard) — <a href="https://leetcode.com/problems/optimize-water-distribution-in-a-village/">link</a>. Model wells as a virtual node, then MST.</li>
+  <li><strong>Critical Connections in a Network</strong> (Hard) — <a href="https://leetcode.com/problems/critical-connections-in-a-network/">link</a>. Find all bridges.</li>
+  <li><strong>Number of Operations to Make Network Connected</strong> (Medium) — <a href="https://leetcode.com/problems/number-of-operations-to-make-network-connected/">link</a>. Components + spare edges.</li>
+  <li><strong>Find Critical and Pseudo-Critical Edges in MST</strong> (Hard) — <a href="https://leetcode.com/problems/find-critical-and-pseudo-critical-edges-in-minimum-spanning-tree/">link</a>. MST with forced/forbidden edges.</li>
+  <li><strong>Path With Minimum Effort</strong> (Medium) — <a href="https://leetcode.com/problems/path-with-minimum-effort/">link</a>. Can be solved MST-style (minimize the max edge).</li>
+  <li><strong>Swim in Rising Water</strong> (Hard) — <a href="https://leetcode.com/problems/swim-in-rising-water/">link</a>. Minimize-the-maximum, MST/Union-Find flavor.</li>
+  <li><strong>The Earliest Moment When Everyone Become Friends</strong> (Medium) — <a href="https://leetcode.com/problems/the-earliest-moment-when-everyone-become-friends/">link</a>. Union timestamps until one component.</li>
+  <li><strong>Remove Max Number of Edges to Keep Graph Fully Traversable</strong> (Hard) — <a href="https://leetcode.com/problems/remove-max-number-of-edges-to-keep-graph-fully-traversable/">link</a>. Two Union-Finds + greedy edge keeping.</li>
+  <li><strong>Checking Existence of Edge Length Limited Paths</strong> (Hard) — <a href="https://leetcode.com/problems/checking-existence-of-edge-length-limited-paths/">link</a>. Offline queries sorted + Union-Find.</li>
+  <li><strong>Minimum Cost to Connect Two Groups of Points</strong> (Hard) — <a href="https://leetcode.com/problems/minimum-cost-to-connect-two-groups-of-points/">link</a>. (A harder connection-cost problem; not plain MST.)</li>
+</ol>
+
+<!-- ============ COMPOSITION (hard) ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>Find Critical and Pseudo-Critical Edges in MST</strong> (Hard 1489) composes <em>MST / Kruskal's</em> (this lesson) with <em>Union-Find</em> (Lesson 24) and <em>sorting as a tool</em> (Lesson 11).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The problem:</strong> classify each edge. An edge is <em>critical</em> if removing it increases the MST weight (every MST must use it); it is <em>pseudo-critical</em> if it appears in some MST but not all.</p>
+  <p><strong>Piece 1 — baseline MST (this lesson + Lesson 11):</strong> sort edges by weight and run Kruskal's to get the minimum total weight <code>W</code>.</p>
+  <p><strong>Piece 2 — Union-Find as a reusable tester (Lesson 24):</strong> to test if an edge is <em>critical</em>, run Kruskal's while <em>forbidding</em> that edge; if you can't connect the graph, or the resulting weight exceeds <code>W</code>, the edge is critical. To test <em>pseudo-critical</em>, <em>force</em> that edge in first (union its endpoints, add its weight) then run Kruskal's on the rest; if the total still equals <code>W</code>, it belongs to some MST.</p>
+  <p><strong>Piece 3 — sorting once, reused (Lesson 11):</strong> you keep the sorted edge list and keep track of each edge's original index (since the answer wants original indices), rebuilding a fresh DSU for each test.</p>
+  <p><strong>Why brute force beyond this is worse:</strong> trying all subsets of edges is exponential; the "forbid one / force one, re-Kruskal" tests are O(E) each over E edges → O(E²·α), which is fine for interview constraints.</p>
+  <pre><code># Sketch:
+# 1) sort edges (keep original indices); W = kruskal(all)      # Pieces 1 & 3
+# 2) for each edge i:
+#      if kruskal(skip=i) > W or disconnected: critical.append(i)   # Piece 2
+#      elif kruskal(force=i) == W:            pseudo.append(i)
+# each kruskal() builds a fresh DSU and unions in sorted order</code></pre>
+  <p>The Hard = (compute the baseline MST) + (reuse Union-Find to re-run Kruskal's under forbid/force constraints) + (sort once, track original indices).</p>
+</details>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If a problem says "connect everything cheaply" you likely want MST; if it says "which link is essential" you want bridges. Unsure which, or whether it's MST vs shortest path? Describe the goal and we'll separate them.
+</div>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — MST &amp; Advanced</h2>
+<p>The compressed version.</p>
+
+<h3>When and why</h3>
+<p>Use a <strong>minimum spanning tree</strong> when the goal is "connect all nodes at minimum total weight" (not shortest path between two). Both algorithms rest on one fact: <em>the cheapest edge crossing any cut is safe to include.</em></p>
+<ul>
+  <li><strong>Kruskal's:</strong> sort edges cheapest-first; add an edge iff its endpoints aren't already connected (Union-Find cycle check); stop at V−1 edges. O(E log E). Best for sparse graphs / edge lists.</li>
+  <li><strong>Prim's:</strong> grow one tree from a seed; repeatedly add the cheapest boundary edge via a min-heap. O(E log V). Best for dense / adjacency graphs.</li>
+</ul>
+
+<h3>Critical connections (lighter)</h3>
+<p>A <strong>bridge</strong> is an edge whose removal disconnects the graph; an <strong>articulation point</strong> is such a node. One DFS tracking discovery time and the earliest reachable ancestor of each subtree finds them in O(V + E). The "critical connections in a network" shape.</p>
+
+<h3>Template (Kruskal's core)</h3>
+<pre><code>edges.sort()                      # (weight, u, v)
+dsu = DSU(n); total = used = 0
+for w, u, v in edges:
+    if dsu.union(u, v):           # skips cycle-forming edges
+        total += w; used += 1
+        if used == n-1: break</code></pre>
+
+<h3>Classic problems</h3>
+<p>Min Cost to Connect All Points (M), Connecting Cities (M), Optimize Water Distribution (H), Critical Connections (H, bridges), Find Critical &amp; Pseudo-Critical Edges (H, composed with Union-Find + sorting), Remove Max Edges to Keep Traversable (H).</p>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> CP-Algorithms MST — Kruskal with DSU and Prim — <a href="https://cp-algorithms.com/graph/mst_kruskal.html">cp-algorithms.com/graph/mst_kruskal</a> and <a href="https://cp-algorithms.com/graph/mst_prim.html">/graph/mst_prim</a>.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 24: Union-Find</span>
+  <span>Next: Lesson 26 — DP Recognition →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

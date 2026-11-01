@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 14 — Recursion Templates (do / recurse / undo)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 3 · Recursion-driven patterns</p>
+<span class="lesson-no">Lesson 14 of the course</span>
+<h1>Recursion Templates — the skeleton every tree, backtracking and DP problem hangs on</h1>
+
+<p>Before backtracking, trees, and DP, we nail the one mental model underneath all three: recursion as a machine that <em>trusts a smaller version of itself</em>. By the end you'll be able to write the recursive skeleton for a cold problem from scratch, and know exactly whether to <strong>return a value up</strong> or <strong>accumulate into a shared result</strong> — the single decision that trips people up most.</p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Warm-up — recall from earlier lessons (no peeking)</h2>
+<p>Reload the old before stacking the new.</p>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. For "find the k-th largest element in an unsorted array", which approach beats a heap on average time?</div>
+  <button class="opt" data-correct="false" data-fb="Sorting is O(n log n). We can do better on average without fully sorting.">Sort the whole array first</button>
+  <button class="opt" data-correct="true" data-fb="Right — Quickselect partitions and recurses into only the side that contains the answer, O(n) average (Lesson 12).">Quickselect by partitioning</button>
+  <button class="opt" data-correct="false" data-fb="Sliding window is for contiguous subarrays under a constraint, not order statistics.">A sliding window of size k</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. You need to answer many "sum of elements from index i to j" queries on a fixed array. What's the preprocessing?</div>
+  <button class="opt" data-correct="true" data-fb="Yes — prefix sums (Lesson 4): a range sum is prefix[j+1] − prefix[i], each query O(1).">Build a prefix-sum array once</button>
+  <button class="opt" data-correct="false" data-fb="Re-summing each query is O(n) per query — the waste prefix sums remove.">Re-sum the range each query</button>
+  <button class="opt" data-correct="false" data-fb="Two pointers needs a monotonic directional signal; arbitrary range-sum queries don't give you one.">Two pointers from both ends</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving the recursion skeleton from scratch</h2>
+
+<p>Take a plain task: <strong>sum a nested list</strong> like <code>[1, [2, 3], [4, [5]]]</code>. An iterative loop stalls immediately — you don't know how deep the nesting goes, so you can't write a fixed number of <code>for</code> loops.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>The waste in trying to be iterative:</strong> you'd need one loop per nesting level, but the depth is unknown. Any fixed loop count is either too few (misses deep items) or hard-codes a limit. The structure is <em>self-similar</em>: a nested list is "numbers, plus more nested lists that are the same kind of thing."</p>
+  <p><strong>The insight (= recursion):</strong> if a sub-piece is the <em>same shape</em> as the whole, let the function call itself on the sub-piece and <strong>trust it to return the right answer</strong>. You only have to handle one level, plus a base case where there's no deeper level.</p>
+  <pre><code>def nested_sum(x):
+    if isinstance(x, int):      # BASE CASE: smallest indivisible thing
+        return x
+    total = 0
+    for item in x:              # ONE level of work
+        total += nested_sum(item)   # TRUST the recursion for the rest
+    return total</code></pre>
+  <p>You never reasoned about depth. You handled one level and delegated the rest. That leap of faith — "assume the recursive call already works on the smaller input" — is the whole skill. Everything in Parts 3 and 5 is a variation of it.</p>
+</div>
+
+<h3>The three parts every recursion must have</h3>
+<p>Whenever you write a recursive function, name these three things explicitly or you will get it wrong:</p>
+<ul>
+  <li><strong>Base case.</strong> The smallest input where the answer is immediate and you stop recursing. Missing or wrong base cases cause infinite recursion or off-by-one errors. Write this first.</li>
+  <li><strong>The work at this level.</strong> What you do with the current element before or after delegating. For nested-sum it's "add this number"; for a tree it's "look at this node".</li>
+  <li><strong>The recursive leap of faith.</strong> You call the function on strictly smaller input and <em>assume it returns the correct answer</em> for that input. You do not trace it down manually — if the base case and the combine step are right, the whole thing is right by induction.</li>
+</ul>
+
+<!-- ============ THE KEY DECISION ============ -->
+<h2>The decision that trips everyone: return a value up, or accumulate into a shared result?</h2>
+<p>This is the single most important fork in recursion, and it's worth stating carefully because getting it wrong produces code that looks right but gives empty or doubled answers.</p>
+
+<h3>Returning a value up (bottom-up combine)</h3>
+<p>Each call computes its own answer from the answers its children returned, then hands one value back to its parent. You use this when the final answer is a single aggregate that is naturally built by combining sub-answers — a sum, a max depth, a count, a boolean "does this subtree satisfy X". The flow of information is <em>upward</em>: leaves answer first, the root answers last. Nested-sum above is exactly this shape.</p>
+
+<h3>Accumulating into a shared result (top-down collect)</h3>
+<p>Instead of returning, each call appends to a result list (or mutates shared state) that lives outside the recursion, usually passing a "path so far" down as an argument. You use this when you must enumerate <em>many</em> things — all root-to-leaf paths, all subsets, all permutations — where there is no single value to combine, you just want every complete path recorded. The flow of information is <em>downward</em>: you build the path on the way down and record it when you hit the base case.</p>
+
+<div class="callout derive">
+  <span class="label">How to decide, in one question</span>
+  <p>Ask: <strong>"Is the answer ONE combined value, or MANY enumerated things?"</strong> One value (sum, depth, count, yes/no) → <em>return it up</em> and combine children's returns. Many things (all paths, all subsets, every arrangement) → <em>accumulate</em> into a shared list and record at the base case. Backtracking (Lesson 15) is always the accumulate flavor; most tree-property problems (Lesson 16) are the return-up flavor.</p>
+</div>
+
+<!-- ============ TEMPLATES ============ -->
+<h2>The two templates (reproduce from memory)</h2>
+<pre><code># RETURN-UP (bottom-up combine): the answer is one aggregate value
+def solve(node):
+    if is_base(node):               # base case
+        return base_value
+    left  = solve(node.child_a)     # trust the recursion
+    right = solve(node.child_b)
+    return combine(node, left, right)   # build MY answer from theirs
+
+# ACCUMULATE (top-down collect): the answer is many enumerated things
+def solve(state, path, result):
+    if is_complete(state):          # base case: a full candidate
+        result.append(list(path))   # record a COPY of the path
+        return
+    for choice in choices(state):
+        path.append(choice)         # do
+        solve(advance(state, choice), path, result)   # recurse
+        path.pop()                  # undo  (the "backtrack")
+</code></pre>
+<p>Notice the <strong>do / recurse / undo</strong> rhythm in the accumulate template — append a choice, recurse with it in place, then remove it so the next choice starts clean. That undo is why the pattern is called <em>backtracking</em>, and you will reuse this exact three-line rhythm throughout Part 3. The <code>list(path)</code> copy matters: if you append <code>path</code> itself, every entry in <code>result</code> points at the same list that keeps mutating.</p>
+
+<!-- ============ WHEN & WHY ============ -->
+<h2>When to reach for recursion, and why it works</h2>
+<p>Reach for recursion when the problem has <strong>self-similar structure</strong>: the input can be broken into one or more pieces that are smaller instances of the same problem. A tree is the purest example — each child is itself a tree. Nested data, "generate all arrangements", divide-and-conquer sorts, and "try a choice then solve the rest" problems all have this shape. It works because of <strong>induction</strong>: if your base case is correct and your combine step correctly builds the answer for an input of size n from correct answers for size n−1 (or the children), then by induction every size is correct — you never have to trace the full call tree by hand.</p>
+<p>It does <em>not</em> fit when the problem has no smaller self-similar sub-instance, or when the recursion would recompute the same sub-answer exponentially many times with no caching (that overlap is exactly the signal for dynamic programming, Part 5 — recursion plus memoization). Recognizing "my recursion recomputes the same input over and over" is the bridge from this lesson to DP.</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — at least 10, easy → hard</h2>
+<p>These drill the skeleton itself: base case, the leap of faith, and the return-up vs accumulate decision. Solve them; ask me if you get stuck.</p>
+<ol>
+  <li><strong>Fibonacci Number</strong> (Easy) — <a href="https://leetcode.com/problems/fibonacci-number/">link</a></li>
+  <li><strong>Power of Two</strong> (Easy) — <a href="https://leetcode.com/problems/power-of-two/">link</a></li>
+  <li><strong>Reverse String</strong> (Easy, do it recursively) — <a href="https://leetcode.com/problems/reverse-string/">link</a></li>
+  <li><strong>Merge Two Sorted Lists</strong> (Easy, recursive version) — <a href="https://leetcode.com/problems/merge-two-sorted-lists/">link</a></li>
+  <li><strong>Pow(x, n)</strong> (Medium — fast exponentiation by halving) — <a href="https://leetcode.com/problems/powx-n/">link</a></li>
+  <li><strong>K-th Symbol in Grammar</strong> (Medium) — <a href="https://leetcode.com/problems/k-th-symbol-in-grammar/">link</a></li>
+  <li><strong>Different Ways to Add Parentheses</strong> (Medium — divide and conquer) — <a href="https://leetcode.com/problems/different-ways-to-add-parentheses/">link</a></li>
+  <li><strong>Sort List</strong> (Medium — recursive merge sort on a linked list) — <a href="https://leetcode.com/problems/sort-list/">link</a></li>
+  <li><strong>Count Good Numbers</strong> (Medium — fast power) — <a href="https://leetcode.com/problems/count-good-numbers/">link</a></li>
+  <li><strong>Special Binary String</strong> (Hard — recursive decomposition) — <a href="https://leetcode.com/problems/special-binary-string/">link</a></li>
+  <li><strong>Tower of Hanoi</strong> style reasoning via <strong>Different Ways to Add Parentheses</strong> variants — revisit #7 and generalize.</li>
+</ol>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a Hard is built from this skeleton</h2>
+<p><strong>Sort List</strong> (Medium 148) — <a href="https://leetcode.com/problems/sort-list/">link</a> — is a clean composition: it stacks the recursion skeleton (this lesson) on top of linked-list manipulation (Lesson 8). Try it before opening the decomposition.</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p>The brute force — copy to an array, sort, rebuild — is O(n log n) time but O(n) extra space and ignores the list structure. The problem wants you to sort the <em>list itself</em>.</p>
+  <p><strong>Piece A (recursion skeleton, this lesson):</strong> a list is self-similar — split it into two halves, each half is itself a list to sort. Base case: zero or one node is already sorted. Recurse on each half, trust both come back sorted, then combine.</p>
+  <p><strong>Piece B (linked-list manipulation, Lesson 8):</strong> two sub-skills from that lesson do the real work. Finding the middle to split uses the <em>fast &amp; slow pointer</em> technique; combining two sorted halves is the <em>merge with a dummy node</em> technique you already drilled.</p>
+  <pre><code>def sortList(head):
+    if not head or not head.next:          # base case
+        return head
+    # split via fast/slow (Lesson 8)
+    slow, fast = head, head.next
+    while fast and fast.next:
+        slow, fast = slow.next, fast.next.next
+    mid = slow.next
+    slow.next = None
+    left  = sortList(head)                 # trust it
+    right = sortList(mid)                  # trust it
+    return merge(left, right)              # merge with dummy node (Lesson 8)</code></pre>
+  <p>The Hard-feeling part dissolves once you name the pieces: recursion gives the divide-and-conquer shape, and the linked-list lesson supplies "find middle" and "merge". Neither piece is hard alone — <strong>that is the whole method for hards: name the pieces.</strong></p>
+</details>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If the "leap of faith" still feels like magic, or you're unsure whether a given problem wants return-up or accumulate, bring me the exact problem and we'll reason it out together. That confusion is the most valuable thing to resolve before moving to backtracking.
+</div>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Recursion Templates</h2>
+<p>The compressed version. A 2-minute re-read should reload the whole skeleton.</p>
+
+<h3>The three parts, every time</h3>
+<ul>
+  <li><strong>Base case</strong> — the smallest input with an immediate answer; write it first, or you get infinite recursion.</li>
+  <li><strong>Work at this level</strong> — what you do with the current element.</li>
+  <li><strong>Leap of faith</strong> — call on strictly smaller input and assume it returns the correct answer; correctness follows by induction.</li>
+</ul>
+
+<h3>The one decision: return up vs accumulate</h3>
+<p>Ask "is the answer ONE combined value, or MANY enumerated things?" One value (sum, depth, count, boolean) → return it up and combine children's returns. Many things (all paths, subsets, permutations) → accumulate into a shared list, record a <em>copy</em> of the path at the base case, using the do / recurse / undo rhythm.</p>
+
+<h3>Templates</h3>
+<pre><code># return-up
+def solve(node):
+    if is_base(node): return base_value
+    L = solve(node.a); R = solve(node.b)
+    return combine(node, L, R)
+
+# accumulate (do / recurse / undo)
+def solve(state, path, result):
+    if complete(state):
+        result.append(list(path)); return
+    for c in choices(state):
+        path.append(c)
+        solve(advance(state, c), path, result)
+        path.pop()</code></pre>
+
+<h3>When it applies, and when it does not</h3>
+<p>Applies to self-similar structure (trees, nested data, "try a choice then solve the rest", divide-and-conquer). Does not apply when there's no smaller sub-instance. If the recursion recomputes the same input repeatedly, that overlap is the signal to add memoization — the bridge to dynamic programming.</p>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> the leap-of-faith framing is from MIT 6.100/6.0001 recursion lectures (freely on MIT OpenCourseWare). For the do/recurse/undo rhythm, NeetCode's backtracking intro — <a href="https://neetcode.io/courses">neetcode.io/courses</a> — is the clearest free walkthrough.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 13: Bit Manipulation</span>
+  <span>Next: Lesson 15 — Backtracking →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

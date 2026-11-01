@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 13 — Bit Manipulation</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 2 · Search, sort &amp; the answer space</p>
+<span class="lesson-no">Lesson 13 of the course</span>
+<h1>Bit Manipulation — when the structure of the problem is the bits themselves</h1>
+
+<p>Bit tricks look like magic incantations to memorize. They aren't. Each one is derived from two facts: XOR cancels equal bits, and a number's bits <em>are</em> a set of yes/no flags. Once you see a problem through those two lenses, the "tricks" write themselves. By the end you'll derive the famous ones rather than recall them.</p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Warm-up — recall earlier patterns (no peeking)</h2>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. Quickselect beats a heap for "k-th largest" only under which condition?</div>
+  <button class="opt" data-correct="true" data-fb="Yes — static, all-present, rearrangeable array answered once. On a stream, use a heap.">The array is static, fully present, and you answer once</button>
+  <button class="opt" data-correct="false" data-fb="Distinctness isn't required for quickselect.">All elements are distinct</button>
+  <button class="opt" data-correct="false" data-fb="Quickselect needs the whole array; streams are the heap's territory.">The data arrives as a stream</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. For "find the smallest value x such that a condition holds", you binary-search the answer. What must you prove about the condition?</div>
+  <button class="opt" data-correct="false" data-fb="You don't need the values sorted; you need the feasibility monotone.">That the input array is sorted</button>
+  <button class="opt" data-correct="true" data-fb="Right — once feasible(x) is True it stays True as x moves one direction; that monotonicity is the whole requirement.">That feasibility is monotone in x</button>
+  <button class="opt" data-correct="false" data-fb="Distinct candidate values aren't required.">That all candidate answers are distinct</button>
+</div>
+
+<!-- ============ DERIVATION 1: XOR ============ -->
+<h2>Lens 1 — XOR cancels, so it isolates the odd one out</h2>
+
+<p>The single fact that powers half of all bit problems: <code>x ^ x == 0</code> and <code>x ^ 0 == x</code>, and XOR is commutative/associative so order doesn't matter. Read that as: <strong>XOR-ing a value an even number of times erases it; an odd number of times leaves it.</strong></p>
+
+<p>Now the classic: every element appears twice except one, which appears once. Find it. <strong>Brute force:</strong> a hashmap counting occurrences, O(n) time and O(n) space. Where's the waste? You're storing full counts when you only care about <em>parity</em> — even vs odd.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p>XOR everything together. Each value that appears twice XORs to 0 and vanishes; the lone value is XOR-ed once and survives. The answer is just <code>reduce(xor, nums)</code> — O(n) time, <strong>O(1) space</strong>, no hashmap. The "trick" is nothing but "XOR erases pairs," applied to the problem's exact structure.</p>
+</div>
+
+<pre><code>from functools import reduce
+from operator import xor
+def single_number(nums):
+    return reduce(xor, nums, 0)</code></pre>
+
+<p>The same lens handles "two numbers appear once, the rest twice": XOR everything to get <code>a ^ b</code>. Since <code>a ≠ b</code>, that result has at least one set bit — a bit where <code>a</code> and <code>b</code> <em>differ</em>. Split all numbers into two groups by that bit, and each group now has exactly one odd-one-out, reducing it to the problem you just solved. You <em>derived</em> the harder version from the easier one by asking "what does a set bit in <code>a^b</code> tell me?"</p>
+
+<!-- ============ DERIVATION 2: BITS AS A SET ============ -->
+<h2>Lens 2 — a number's bits ARE a set of flags</h2>
+
+<p>An integer's binary form is a list of yes/no flags. Bit <code>i</code> set means "element <code>i</code> is in the set." This turns "enumerate all subsets" — which sounds like recursion — into plain counting.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p>A set of <code>n</code> elements has 2ⁿ subsets. Each subset corresponds to an n-bit number: bit <code>i</code> on ⇔ element <code>i</code> is included. So iterating <code>mask</code> from <code>0</code> to <code>2ⁿ − 1</code> enumerates <em>every</em> subset exactly once, and <code>mask &amp; (1 &lt;&lt; i)</code> tests whether element <code>i</code> is in this subset. No recursion needed — the binary counter <em>is</em> the subset generator.</p>
+</div>
+
+<pre><code>def all_subsets(elems):
+    n = len(elems)
+    out = []
+    for mask in range(1 &lt;&lt; n):              # 0 .. 2^n - 1
+        subset = [elems[i] for i in range(n) if mask &amp; (1 &lt;&lt; i)]
+        out.append(subset)
+    return out</code></pre>
+
+<p>This bitmask-as-subset idea is the backbone of bitmask DP later in the course, where <code>mask</code> encodes "which items are already used." You're meeting the representation now so it's familiar then.</p>
+
+<h3>The handful of identities you actually reason with</h3>
+<p>Rather than memorize a wall of tricks, understand these few and derive the rest. <code>n &amp; (n-1)</code> clears the lowest set bit — because subtracting 1 flips the lowest set bit and all the zeros below it, so AND-ing wipes exactly that lowest one; repeatedly doing this counts set bits, and testing <code>n &amp; (n-1) == 0</code> checks "power of two" (a power of two has exactly one set bit, so clearing it gives 0). <code>n &amp; (-n)</code> isolates the lowest set bit, because two's-complement negation is "flip all bits and add 1", which leaves only the lowest set bit matching. And <code>x ^ y</code> marks exactly the positions where <code>x</code> and <code>y</code> differ, which is why it measures Hamming distance and isolates distinguishing bits.</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice problems — solve these yourself</h2>
+<p>Problems only. Ask me if stuck. Watch which lens each one wants — XOR-cancellation or bits-as-flags.</p>
+<ol>
+  <li><strong>Single Number</strong> (Easy) — <a href="https://leetcode.com/problems/single-number/">link</a></li>
+  <li><strong>Number of 1 Bits</strong> (Easy) — <a href="https://leetcode.com/problems/number-of-1-bits/">link</a></li>
+  <li><strong>Power of Two</strong> (Easy) — <a href="https://leetcode.com/problems/power-of-two/">link</a></li>
+  <li><strong>Counting Bits</strong> (Easy) — <a href="https://leetcode.com/problems/counting-bits/">link</a></li>
+  <li><strong>Missing Number</strong> (Easy) — <a href="https://leetcode.com/problems/missing-number/">link</a></li>
+  <li><strong>Reverse Bits</strong> (Easy) — <a href="https://leetcode.com/problems/reverse-bits/">link</a></li>
+  <li><strong>Single Number II</strong> (Medium) — <a href="https://leetcode.com/problems/single-number-ii/">link</a></li>
+  <li><strong>Single Number III</strong> (Medium) — <a href="https://leetcode.com/problems/single-number-iii/">link</a></li>
+  <li><strong>Subsets</strong> (Medium) — <a href="https://leetcode.com/problems/subsets/">link</a></li>
+  <li><strong>Bitwise AND of Numbers Range</strong> (Medium) — <a href="https://leetcode.com/problems/bitwise-and-of-numbers-range/">link</a></li>
+  <li><strong>Sum of Two Integers</strong> (Medium) — <a href="https://leetcode.com/problems/sum-of-two-integers/">link</a></li>
+  <li><strong>Maximum XOR of Two Numbers in an Array</strong> (Medium) — <a href="https://leetcode.com/problems/maximum-xor-of-two-numbers-in-an-array/">link</a></li>
+  <li><strong>Minimum Number of K Consecutive Bit Flips</strong> (Hard) — <a href="https://leetcode.com/problems/minimum-number-of-k-consecutive-bit-flips/">link</a></li>
+</ol>
+
+<div class="callout trap">
+  <span class="label">Trap — sharpen your discrimination</span>
+  <p><strong>Single Number II</strong> (Medium): every element appears three times except one. The instinct is "XOR everything" like Single Number I — but XOR only cancels <em>pairs</em> (even counts), and three is odd, so plain XOR leaves garbage. You instead track each bit's count <em>modulo 3</em> (or use two accumulators that cycle through three states). Lesson: XOR is parity (mod 2); the moment the repetition count isn't 2, the clean XOR cancellation no longer applies and you must generalize to mod-k bit counting.</p>
+</div>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>Minimum Number of K Consecutive Bit Flips</strong> (Hard) — <a href="https://leetcode.com/problems/minimum-number-of-k-consecutive-bit-flips/">link</a> — composes <em>XOR parity tracking</em> (this lesson) with a <em>sliding-window / difference-array</em> technique (Lessons 3 and 4) to apply range flips in O(1) each.</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p>You may flip any length-<code>k</code> window of bits; find the minimum flips to make all bits 1, or −1 if impossible. Scanning left to right, each position must end up 1, and once you pass a position you can never flip it again (a flip starting earlier would extend leftward). So the decision at each index is forced — greedy — but naively applying each flip over k positions is O(n·k).</p>
+  <p><strong>Pattern A (XOR parity):</strong> what matters at position <code>i</code> is only the <em>parity</em> of how many flips so far still cover it — flipping a bit an even number of times is a no-op, odd flips it. So you track a running parity, not the actual bit values. This is Lens 1 of this lesson: even/odd is all that counts.</p>
+  <p><strong>Pattern B (difference array to end windows in O(1)):</strong> to know when a flip's influence <em>ends</em>, mark the position <code>i + k</code> where it stops (a difference-array / sliding-window boundary from Lessons 3–4). As you sweep, subtract expired flips from the running parity. Each flip is applied and expired in O(1), so the whole thing is O(n).</p>
+  <pre><code>def minKBitFlips(nums, k):
+    n, flips, cur = len(nums), 0, 0   # cur = running parity of active flips
+    ended = [0] * (n + 1)             # difference-array marker for expiry
+    for i in range(n):
+        cur ^= ended[i]               # a flip that started at i-k expires here
+        if (nums[i] ^ cur) == 0:      # effective bit is 0 -> must start a flip
+            if i + k &gt; n:
+                return -1
+            flips += 1
+            cur ^= 1
+            ended[i + k] ^= 1         # schedule this flip to expire at i+k
+    return flips</code></pre>
+  <p>The Hard = (XOR parity instead of real bit values) + (difference-array window boundaries) + (a greedy forced-choice sweep). Three pieces you already own. <strong>Name them and the Hard is just wiring.</strong></p>
+</details>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Bit Manipulation</h2>
+<p>The compressed version. Re-reading this should reload the whole pattern.</p>
+
+<h3>When to use it, and why</h3>
+<ul>
+  <li><strong>XOR cancellation (parity problems).</strong> When elements pair up and you need the unpaired one, or you need "which bits differ", XOR everything: equal values cancel to 0, so the odd-one-out or the differing bits survive — O(1) space, no hashmap.</li>
+  <li><strong>Bits as a set of flags (subset enumeration / bitmask state).</strong> When you must enumerate all 2ⁿ subsets, or track "which of n items are used", let an integer <code>mask</code> be the set: bit <code>i</code> on ⇔ item <code>i</code> included. Counting <code>mask</code> from 0 to 2ⁿ−1 enumerates every subset once.</li>
+</ul>
+
+<h3>The one-line reason it works</h3>
+<p>XOR is addition mod 2 per bit, so even occurrences vanish and only odd ones remain; and an n-bit integer is literally an n-element yes/no membership vector, so a binary counter is a subset generator.</p>
+
+<h3>How to derive it cold</h3>
+<p>Ask "do I only care about parity (even/odd), not exact counts?" → XOR everything. Ask "am I choosing a subset / which items are in or out?" → represent the choice as a bitmask and iterate masks. The famous tricks (<code>n&amp;(n-1)</code> clears the lowest set bit, <code>n&amp;-n</code> isolates it, <code>x^y</code> marks differences) all follow from these.</p>
+
+<h3>Discrimination test (when it does NOT apply)</h3>
+<p>If the repetition count isn't 2 (Single Number II's triples), plain XOR parity breaks — generalize to counting each bit mod k. If n is large (more than ~20–22), 2ⁿ bitmask enumeration is too big; the bits-as-set trick is for small n only.</p>
+
+<h3>Template (Python)</h3>
+<pre><code># XOR to isolate the unpaired value
+from functools import reduce; from operator import xor
+odd = reduce(xor, nums, 0)
+
+# enumerate all subsets via bitmask
+for mask in range(1 &lt;&lt; n):
+    subset = [elems[i] for i in range(n) if mask &amp; (1 &lt;&lt; i)]
+
+# key identities
+#   n &amp; (n - 1)   clears lowest set bit   (==0 means power of two)
+#   n &amp; (-n)      isolates lowest set bit
+#   bin(x).count("1")  population count</code></pre>
+
+<h3>Complexity and classic problems</h3>
+<p>XOR scans O(n) time, O(1) space; subset enumeration O(2ⁿ · n). Practice set: Single Number (E), Counting Bits (E), Power of Two (E), Single Number III (M), Subsets (M), Maximum XOR of Two Numbers (M), Minimum Number of K Consecutive Bit Flips (H).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If a bit trick still feels like magic, bring it — we'll rebuild it from "XOR cancels" or "bits are flags" until it's obvious rather than memorized.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> the <a href="https://graphics.stanford.edu/~seander/bithacks.html">Stanford "Bit Twiddling Hacks"</a> page is the canonical catalogue; read it <em>after</em> you can derive the basics, so each entry reads as "oh, of course" rather than "memorize this."
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 12: Quickselect</span>
+  <span>Next: Lesson 14 — Recursion Templates →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

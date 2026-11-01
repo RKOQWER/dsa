@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 9 — Matrix Traversal (derived)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 1 · Linear structures</p>
+<span class="lesson-no">Lesson 09 of the course</span>
+<h1>Matrix Traversal — derived from managing boundaries</h1>
+
+<p>By the end you'll derive spiral traversal from boundary bookkeeping, see why layer-by-layer rotation works, learn to treat a grid as coordinates you can transform, and reach a <strong>Hard</strong>. (Grid-as-graph flood fill is deferred to the graph lessons — here we stay with geometric traversal.)</p>
+
+<!-- ============ SPACED WARM-UP ============ -->
+<h2>Warm-up — recall from earlier lessons (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. What does the three-pointer reversal always do before flipping a link?</div>
+  <button class="opt" data-correct="true" data-fb="Right — stash the successor (nxt = cur.next) before overwriting cur.next, or you lose the rest of the list.">Save the successor node before overwriting the pointer</button>
+  <button class="opt" data-correct="false" data-fb="You don't need the length to reverse; the loop ends when cur falls off.">Count the length of the list first</button>
+  <button class="opt" data-correct="false" data-fb="No sorting is involved in reversal.">Sort the nodes by value</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. Why add a dummy head to a linked list operation?</div>
+  <button class="opt" data-correct="false" data-fb="A dummy doesn't change asymptotic speed; it changes edge-case handling.">To make the traversal faster than O(n)</button>
+  <button class="opt" data-correct="true" data-fb="Yes — every real node gets a predecessor, so inserting/deleting at the head stops being a special case.">So the head is never a special position for insert/delete</button>
+  <button class="opt" data-correct="false" data-fb="It stores no value you rely on; it's a structural sentinel.">To store the length of the list</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving spiral traversal from scratch</h2>
+<p>Take the canonical case. Visit every cell of an <code>m×n</code> matrix in spiral order: top row left-to-right, right column top-to-bottom, bottom row right-to-left, left column bottom-to-top, then inward.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Naive attempt:</strong> try to track a single <code>(row, col)</code> and a current direction, turning right whenever you'd step off the edge or onto a visited cell. This works but needs a visited-marker array and fiddly "should I turn now?" checks at every step — easy to get wrong.</p>
+  <p><strong>Spot the waste:</strong> you are detecting the spiral's turns reactively, one cell at a time, when the structure is actually known in advance: a spiral is just four straight walks bounded by four shrinking edges. You're paying per-cell bookkeeping for a shape whose boundaries you could name up front.</p>
+  <p><strong>The insight (= the pattern):</strong> hold four boundaries — <code>top</code>, <code>bottom</code>, <code>left</code>, <code>right</code>. Walk the top row from <code>left</code> to <code>right</code>, then drop <code>top</code> by one. Walk the right column, then pull <code>right</code> in by one. Walk the bottom row, raise <code>bottom</code>. Walk the left column, push <code>left</code> in. Repeat while <code>top ≤ bottom</code> and <code>left ≤ right</code>. No visited array and no turn-detection — each of the four walks is a plain loop between two boundaries, and shrinking the boundary after each walk encodes the spiral. Managing the four edges is the whole pattern.</p>
+</div>
+
+<h3>The deeper principle (so it transfers)</h3>
+<p>Matrix traversal problems are usually not about a data structure but about <strong>coordinate bookkeeping</strong>: naming the right boundaries or the right coordinate transformation so the traversal becomes a set of straight, obviously-correct loops. Spiral order is four shrinking boundaries. In-place <strong>rotation</strong> is the observation that rotating 90° sends cell <code>(r, c)</code> to <code>(c, n−1−r)</code>, which you can realize either by processing concentric layers and cycling four cells at a time, or by the two-step identity "transpose, then reverse each row." Setting a matrix's rows and columns to zero in place is really about choosing <em>where to store the marks</em> so you don't corrupt cells you haven't processed — the same index-as-hash instinct from Lesson 7, now using the first row and column as the marker storage. Once you ask "what coordinates map to what, and which boundaries bound each straight pass," the traversal writes itself.</p>
+
+<!-- ============ SIGNALS ============ -->
+<h2>When to use each technique, and why</h2>
+
+<h3>Four-boundary walk (spiral and boundary traversals)</h3>
+<p>You use the four-boundary technique when a problem wants cells visited in a spiral, or wants only the boundary ring, or wants a diagonal order. You maintain the current <code>top/bottom/left/right</code> limits and perform one straight loop per edge, shrinking that limit afterward. It works because the traversal shape is fixed and known, so explicit boundaries replace per-cell turn detection entirely.</p>
+
+<h3>Layer cycling or transpose-plus-reverse (in-place rotation)</h3>
+<p>You use layer cycling when a problem asks to rotate the matrix 90° in place with no extra matrix. You either rotate four corresponding cells around each concentric square at once, or apply the transpose-then-reverse-rows identity. It works because a 90° rotation is a fixed coordinate permutation, and four cells form a closed cycle under it, so each cycle can be rotated with a single temporary.</p>
+
+<h3>Markers stored in the grid itself (in-place flagging)</h3>
+<p>You use in-grid markers when a problem requires modifying the matrix based on a global scan but forbids an extra <code>m×n</code> buffer — "set entire row and column to zero if a cell is zero" being the classic. You reserve an existing row and column (usually the first of each) to record which rows/columns must be zeroed, process the interior using those marks, then handle the reserved row and column last. It works because the first row and column are enough storage for one bit per row and per column, so you avoid allocating a parallel grid.</p>
+
+<!-- ============ TEMPLATE ============ -->
+<h2>The template (reproduce from memory)</h2>
+<pre><code># Spiral order via four shrinking boundaries
+def spiral_order(mat):
+    if not mat: return []
+    top, bottom = 0, len(mat) - 1
+    left, right = 0, len(mat[0]) - 1
+    out = []
+    while top <= bottom and left <= right:
+        for c in range(left, right + 1):      # top row L->R
+            out.append(mat[top][c])
+        top += 1
+        for r in range(top, bottom + 1):       # right col T->B
+            out.append(mat[r][right])
+        right -= 1
+        if top <= bottom:
+            for c in range(right, left - 1, -1):   # bottom row R->L
+                out.append(mat[bottom][c])
+            bottom -= 1
+        if left <= right:
+            for r in range(bottom, top - 1, -1):   # left col B->T
+                out.append(mat[r][left])
+            left += 1
+    return out
+
+# Rotate 90 degrees clockwise in place: transpose, then reverse each row
+def rotate(mat):
+    n = len(mat)
+    for i in range(n):
+        for j in range(i + 1, n):
+            mat[i][j], mat[j][i] = mat[j][i], mat[i][j]   # transpose
+    for row in mat:
+        row.reverse()                                     # reverse each row
+</code></pre>
+<p>A compact reference is at the <a href="#refcard">bottom of this lesson</a>.</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only. Solve them yourself; ask me if you get stuck.</p>
+<ol>
+  <li><strong>Transpose Matrix</strong> (Easy) — <a href="https://leetcode.com/problems/transpose-matrix/">link</a></li>
+  <li><strong>Flipping an Image</strong> (Easy) — <a href="https://leetcode.com/problems/flipping-an-image/">link</a></li>
+  <li><strong>Matrix Diagonal Sum</strong> (Easy) — <a href="https://leetcode.com/problems/matrix-diagonal-sum/">link</a></li>
+  <li><strong>Spiral Matrix</strong> (Medium) — <a href="https://leetcode.com/problems/spiral-matrix/">link</a></li>
+  <li><strong>Spiral Matrix II</strong> (Medium) — <a href="https://leetcode.com/problems/spiral-matrix-ii/">link</a></li>
+  <li><strong>Rotate Image</strong> (Medium) — <a href="https://leetcode.com/problems/rotate-image/">link</a></li>
+  <li><strong>Set Matrix Zeroes</strong> (Medium) — <a href="https://leetcode.com/problems/set-matrix-zeroes/">link</a></li>
+  <li><strong>Diagonal Traverse</strong> (Medium) — <a href="https://leetcode.com/problems/diagonal-traverse/">link</a></li>
+  <li><strong>Game of Life</strong> (Medium) — <a href="https://leetcode.com/problems/game-of-life/">link</a></li>
+  <li><strong>Spiral Matrix III</strong> (Medium) — <a href="https://leetcode.com/problems/spiral-matrix-iii/">link</a></li>
+  <li><strong>Valid Sudoku</strong> (Medium) — <a href="https://leetcode.com/problems/valid-sudoku/">link</a></li>
+  <li><strong>Spiral Matrix IV</strong> (Medium) — <a href="https://leetcode.com/problems/spiral-matrix-iv/">link</a></li>
+</ol>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a harder matrix problem is built from this pattern</h2>
+<p><strong>Game of Life</strong> (Medium, in-place variant is the hard part) — <a href="https://leetcode.com/problems/game-of-life/">link</a> — composes grid traversal (this lesson) with the in-place marker idea (this lesson and Lesson 7's index-as-hash instinct).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The ask:</strong> advance Conway's Game of Life one step, updating the board <em>in place</em>, where every cell's next state depends on its eight current neighbours. The trap: if you overwrite a cell, its neighbours later in the scan will read the new value instead of the old one.</p>
+  <p><strong>Piece A — grid traversal:</strong> you simply visit every cell and count its live neighbours — a plain double loop over coordinates, the bread-and-butter of this lesson.</p>
+  <p><strong>Piece B — encode two states in one cell (in-place marking):</strong> to avoid a second board, store both old and new state in each cell using extra bit values. For example let <code>0,1</code> mean "was dead/alive" and use <code>2 = was alive, now dead</code> and <code>3 = was dead, now alive</code>. Neighbour counting reads parity (<code>old alive</code> is value <code>1</code> or <code>2</code>), while the new state lives in the higher bit. A final pass maps every cell to its new value. This is exactly Lesson 7's instinct — carry the auxiliary information inside the input rather than allocating a parallel grid.</p>
+  <p>The Hard = (coordinate traversal with neighbour counting) + (in-place two-state encoding). The famous "do it in place" twist is just the Lesson 7 marker trick applied to a grid.</p>
+</details>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Matrix Traversal</h2>
+
+<h3>When to use each, and why</h3>
+<ul>
+  <li><strong>Four-boundary walk.</strong> Spiral order, boundary ring, or ordered sweeps. Keep <code>top/bottom/left/right</code>, do one straight loop per edge, shrink the boundary afterward. Known shape means explicit boundaries replace per-cell turn detection.</li>
+  <li><strong>Layer cycling or transpose+reverse.</strong> Rotate 90° in place. Cycle the four cells of each concentric square, or transpose then reverse each row. A rotation is a fixed coordinate permutation, and four cells form a closed cycle.</li>
+  <li><strong>Markers stored in the grid.</strong> Global in-place updates with no extra buffer (set-zeroes, Game of Life). Use the first row/column, or extra bit values, to record marks, then apply them in a final pass. The grid itself carries the auxiliary bits.</li>
+</ul>
+
+<h3>The one-line reason it works</h3>
+<p>Matrix problems reduce to coordinate bookkeeping — naming the boundaries or the coordinate map that turns the traversal into straight, obviously-correct loops, and storing any marks inside the grid to stay in place.</p>
+
+<h3>Discrimination test</h3>
+<p>If the matrix problem is about <em>reachability, connected regions, or shortest path through cells</em>, it is really a graph problem (treat each cell as a node) and belongs to the graph lessons, not here. This lesson is for geometric traversal and in-place transformation, where the movement pattern is fixed and known in advance.</p>
+
+<h3>Templates (Python)</h3>
+<pre><code># spiral boundaries
+top, bottom, left, right = 0, m-1, 0, n-1
+while top <= bottom and left <= right:
+    for c in range(left, right+1): visit(top, c)
+    top += 1
+    for r in range(top, bottom+1): visit(r, right)
+    right -= 1
+    if top <= bottom:
+        for c in range(right, left-1, -1): visit(bottom, c)
+        bottom -= 1
+    if left <= right:
+        for r in range(bottom, top-1, -1): visit(r, left)
+        left += 1</code></pre>
+
+<h3>Complexity and classic problems</h3>
+<p>O(m·n) time; O(1) extra space for the in-place variants. Classic set: Spiral Matrix (Medium), Rotate Image (Medium), Set Matrix Zeroes (Medium), Diagonal Traverse (Medium), Game of Life (Medium, in-place composed).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> Unsure why transpose-then-reverse equals a rotation, or how to pick which row/column stores the zero marks? Bring the matrix and we'll trace the coordinates.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> LeetCode's editorials for Spiral Matrix and Rotate Image give the clearest boundary and coordinate-transform explanations — <a href="https://leetcode.com/problems/spiral-matrix/solutions/">LeetCode solutions</a>.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 8: Linked List Manipulation</span>
+  <span>Next: Lesson 10 — Binary Search →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

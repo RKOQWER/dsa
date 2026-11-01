@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 21 — Graph BFS &amp; DFS (one traversal, two shapes)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 4 · Graphs</p>
+<span class="lesson-no">Lesson 21 of the course</span>
+<h1>Graph BFS &amp; DFS — components, flood fill, and the one rule that keeps them linear</h1>
+
+<p>Once a problem is modeled as a graph (Lesson 20), you traverse it. BFS and DFS are the same traversal with one difference — the order in which you pull work off your pile. This lesson derives why a <strong>visited set</strong> is what makes any graph traversal O(V + E), when to prefer BFS over DFS, and the connected-components / flood-fill shape that shows up everywhere.</p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Recall from earlier lessons (no peeking)</h2>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. In Lesson 20, the one question that turns a cold problem into a graph was…</div>
+  <button class="opt" data-correct="true" data-fb="Yes — name the state (node) and the legal move (edge). Everything downstream is traversal.">"What is the state, and what are the legal moves?"</button>
+  <button class="opt" data-correct="false" data-fb="Representation comes AFTER you've recognised it's a graph; it's not the recognition step.">"Adjacency list or matrix?"</button>
+  <button class="opt" data-correct="false" data-fb="That's a sorting decision, unrelated to recognising a graph.">"Is the input sorted?"</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. For a grid, how do you usually get a cell's neighbours?</div>
+  <button class="opt" data-correct="false" data-fb="Building an explicit adjacency list for a grid is wasteful — the grid already encodes the structure.">Precompute a full adjacency list</button>
+  <button class="opt" data-correct="true" data-fb="Right — add the four direction offsets on the fly and bounds-check. The grid is the graph.">Add the 4 direction offsets on the fly, with bounds checks</button>
+  <button class="opt" data-correct="false" data-fb="A matrix of V² is unnecessary for a grid and wastes space.">Build a V×V adjacency matrix</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving the traversal — and why the visited set is non-negotiable</h2>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>The task:</strong> starting from a node, reach every node reachable from it.</p>
+  <p><strong>First attempt:</strong> "go to a neighbour, then its neighbours, and so on." But graphs have cycles and multiple paths to the same node. Without bookkeeping you revisit nodes forever — in a cycle you never terminate, and even in a DAG you re-expand the same node along every path, which blows up exponentially. This is the same waste you saw in Word Ladder's brute force: re-deriving the future of a node you've already handled.</p>
+  <p><strong>Spot the waste:</strong> a node's reachable set does not depend on how you arrived at it. So the first time you touch a node you should record it and never process it again.</p>
+  <p><strong>The insight (= the pattern):</strong> keep a <code>visited</code> set. Maintain a pile of "nodes to process." Pop one, and for each neighbour not yet visited, mark it visited and push it. Because every node is pushed at most once and each edge is examined at most twice (once from each endpoint), the whole traversal is <strong>O(V + E)</strong>. The visited set is the single thing that converts a potentially infinite/exponential walk into a linear one.</p>
+  <p><strong>The only real choice left</strong> is what the pile is. A <em>queue</em> (FIFO) processes nodes in order of distance from the start — that is <strong>BFS</strong>, and it explores level by level. A <em>stack</em> (LIFO), or equivalently recursion, dives as deep as possible first — that is <strong>DFS</strong>. Same algorithm, same visited set, same O(V + E); only the pile's discipline differs.</p>
+</div>
+
+<h3>The deeper principle (so it transfers)</h3>
+<p>Every graph traversal is "pop from a pile, mark neighbours visited, push them." The data structure you use for the pile decides the exploration order, and the exploration order is what you choose based on the question. If you need the <em>fewest edges</em> to reach something, you want level-by-level order, so use a queue (BFS). If you only need to know <em>whether</em> something is reachable, or you want to process a node fully before its siblings (subtree sizes, cycle detection, backtracking-style work), a stack or recursion (DFS) is simpler. Neither is faster in the big-O sense — they differ in order and in memory shape.</p>
+
+<!-- ============ WHEN TO USE ============ -->
+<h2>When to reach for BFS vs DFS, and why</h2>
+
+<h3>Use BFS when the question is about shortest distance in an unweighted graph</h3>
+<p>Because a queue pulls nodes out in increasing order of distance from the start, the first time BFS reaches a node is guaranteed to be along a path with the fewest edges. So whenever the problem asks for the minimum number of steps, moves, or levels — and every edge counts the same — BFS gives the answer directly. It is also the natural choice when you want to process a graph in layers (for example, rotting oranges spreading one minute at a time).</p>
+
+<h3>Use DFS when you need to explore a whole branch before moving on</h3>
+<p>Recursion naturally finishes one subtree/branch completely before backtracking, which is exactly what you want for counting the size of a connected region, detecting a cycle by tracking the current recursion path, or any problem where a node's answer depends on fully resolving its descendants first. DFS also uses memory proportional to the longest path rather than the widest level, which can matter on tall, narrow graphs.</p>
+
+<h3>Connected components and flood fill are just repeated traversal</h3>
+<p>To count groups (islands, provinces, friend circles), walk every node; when you find one not yet visited, that is a new component, so increment a counter and run one traversal to mark the entire component visited. Because the visited set prevents re-entry, the number of times you start a fresh traversal equals the number of components. Flood fill is the same shape — start one traversal and recolour everything connected.</p>
+
+<!-- ============ TEMPLATE ============ -->
+<h2>The template (reproduce from memory)</h2>
+<pre><code>from collections import deque
+
+# BFS — shortest #edges in an unweighted graph
+def bfs(start, adj):
+    visited = {start}
+    q = deque([(start, 0)])          # (node, distance)
+    while q:
+        node, dist = q.popleft()
+        for nxt in adj[node]:
+            if nxt not in visited:
+                visited.add(nxt)     # mark on ENQUEUE, not on dequeue
+                q.append((nxt, dist + 1))
+    return visited
+
+# DFS — recursive
+def dfs(node, adj, visited):
+    visited.add(node)
+    for nxt in adj[node]:
+        if nxt not in visited:
+            dfs(nxt, adj, visited)
+
+# Count connected components
+def count_components(nodes, adj):
+    visited = set()
+    count = 0
+    for node in nodes:
+        if node not in visited:
+            count += 1
+            dfs(node, adj, visited)
+    return count
+</code></pre>
+<p>Mark a node visited <em>when you add it to the pile</em>, not when you pop it — otherwise the same node can be enqueued many times before it is first processed. Compact reference at the <a href="#refcard">bottom</a>.</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — recognise the traversal, pick the pile</h2>
+<p>Problems only; ask me if you get stuck.</p>
+
+<ol>
+  <li><strong>Flood Fill</strong> (Easy) — <a href="https://leetcode.com/problems/flood-fill/">link</a>.</li>
+  <li><strong>Number of Islands</strong> (Medium) — <a href="https://leetcode.com/problems/number-of-islands/">link</a>. The canonical components count.</li>
+  <li><strong>Max Area of Island</strong> (Medium) — <a href="https://leetcode.com/problems/max-area-of-island/">link</a>.</li>
+  <li><strong>Number of Provinces</strong> (Medium) — <a href="https://leetcode.com/problems/number-of-provinces/">link</a>.</li>
+  <li><strong>Rotting Oranges</strong> (Medium) — <a href="https://leetcode.com/problems/rotting-oranges/">link</a>. Multi-source BFS in layers.</li>
+  <li><strong>01 Matrix</strong> (Medium) — <a href="https://leetcode.com/problems/01-matrix/">link</a>. Why start BFS from all zeros at once?</li>
+  <li><strong>Surrounded Regions</strong> (Medium) — <a href="https://leetcode.com/problems/surrounded-regions/">link</a>. Traverse from the border inward.</li>
+  <li><strong>Pacific Atlantic Water Flow</strong> (Medium) — <a href="https://leetcode.com/problems/pacific-atlantic-water-flow/">link</a>. Two traversals, then intersect.</li>
+  <li><strong>Number of Enclaves</strong> (Medium) — <a href="https://leetcode.com/problems/number-of-enclaves/">link</a>.</li>
+  <li><strong>Shortest Path in Binary Matrix</strong> (Medium) — <a href="https://leetcode.com/problems/shortest-path-in-binary-matrix/">link</a>. BFS because every move costs one.</li>
+  <li><strong>Word Ladder</strong> (Hard) — <a href="https://leetcode.com/problems/word-ladder/">link</a>. BFS over a state-space graph.</li>
+  <li><strong>Making A Large Island</strong> (Hard) — <a href="https://leetcode.com/problems/making-a-large-island/">link</a>. Component sizing + a clever recombination.</li>
+</ol>
+
+<!-- ============ COMPOSITION (hard) ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>Making A Large Island</strong> (Hard 827) composes <em>graph BFS/DFS component counting</em> (this lesson) with <em>hashing</em> (Lesson 5) to recombine results.</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The problem:</strong> you may flip exactly one 0 to 1; return the largest island possible afterwards.</p>
+  <p><strong>Piece 1 — DFS component sizing (this lesson):</strong> first, label every existing island with a unique id and record each island's size. That is a single pass of connected-components DFS, giving a map <code>id → size</code>.</p>
+  <p><strong>Piece 2 — hashing to merge without recomputing (Lesson 5):</strong> for each 0 cell, look at its up/down/left/right neighbours, collect the <em>distinct</em> island ids around it into a <strong>set</strong> (hashing — so the same island touched on two sides is counted once), and sum those island sizes plus one for the flipped cell. The max over all 0 cells is the answer. The set is what prevents double-counting an island that borders the cell twice.</p>
+  <p><strong>Why brute force is worse:</strong> flipping each 0 and re-running a full island DFS is O((RC)²). Labelling once and merging via a set of neighbour ids is O(RC).</p>
+  <pre><code>def largestIsland(grid):
+    n = len(grid)
+    size = {}                     # island id -> size
+    island_id = 2                 # start at 2 (0 and 1 already used)
+
+    def dfs(r, c, idx):
+        if not (0 <= r < n and 0 <= c < n) or grid[r][c] != 1:
+            return 0
+        grid[r][c] = idx
+        return 1 + dfs(r+1,c,idx) + dfs(r-1,c,idx) + dfs(r,c+1,idx) + dfs(r,c-1,idx)
+
+    for r in range(n):            # Piece 1: label + size every island once
+        for c in range(n):
+            if grid[r][c] == 1:
+                size[island_id] = dfs(r, c, island_id)
+                island_id += 1
+
+    best = max(size.values(), default=0)
+    for r in range(n):            # Piece 2: try each 0, merge neighbour islands via a set
+        for c in range(n):
+            if grid[r][c] == 0:
+                seen = set()
+                for dr, dc in [(-1,0),(1,0),(0,-1),(0,1)]:
+                    nr, nc = r+dr, c+dc
+                    if 0 <= nr < n and 0 <= nc < n and grid[nr][nc] > 1:
+                        seen.add(grid[nr][nc])
+                best = max(best, 1 + sum(size[i] for i in seen))
+    return best</code></pre>
+  <p>The Hard = (label + size components with DFS) + (hashing a set of neighbour ids to merge sizes without recomputation).</p>
+</details>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> Unsure whether a problem wants BFS or DFS? Tell me what the question is asking for (shortest distance? whole-region work? just reachability?) and we'll pick the pile together.
+</div>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Graph BFS &amp; DFS</h2>
+<p>The compressed version.</p>
+
+<h3>The core idea</h3>
+<p>Every traversal is: pop a node from a pile, and for each neighbour not yet <strong>visited</strong>, mark it and push it. The visited set makes it O(V + E) by ensuring each node is processed once. The pile's type sets the order: a <strong>queue → BFS</strong> (level by level), a <strong>stack/recursion → DFS</strong> (deep first).</p>
+
+<h3>When to use which, and why</h3>
+<ul>
+  <li><strong>BFS</strong> when you need the fewest edges/steps in an <em>unweighted</em> graph (the queue visits nodes in distance order, so the first arrival is shortest), or when you want to process the graph in layers.</li>
+  <li><strong>DFS</strong> when a node's answer needs its whole branch resolved first (region size, cycle detection on the current path, backtracking) or when memory should scale with path length, not level width.</li>
+  <li><strong>Connected components / flood fill:</strong> loop over all nodes; each unvisited node starts a new component and one traversal marks the whole group. Count of fresh starts = number of components.</li>
+</ul>
+
+<h3>Gotcha</h3>
+<p>Mark visited <em>on enqueue/push</em>, not on dequeue/pop, or nodes get added multiple times.</p>
+
+<h3>Templates</h3>
+<pre><code># BFS
+visited = {start}; q = deque([start])
+while q:
+    node = q.popleft()
+    for nxt in adj[node]:
+        if nxt not in visited:
+            visited.add(nxt); q.append(nxt)
+
+# DFS (recursive)
+def dfs(node):
+    visited.add(node)
+    for nxt in adj[node]:
+        if nxt not in visited:
+            dfs(nxt)</code></pre>
+
+<h3>Classic problems</h3>
+<p>Flood Fill (E), Number of Islands (M), Rotting Oranges (M), 01 Matrix (M), Surrounded Regions (M), Pacific Atlantic (M), Shortest Path in Binary Matrix (M), Word Ladder (H), Making A Large Island (H, composed with hashing).</p>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> the BFS/DFS derivation and O(V+E) argument in CP-Algorithms — <a href="https://cp-algorithms.com/graph/breadth-first-search.html">cp-algorithms.com/graph/breadth-first-search</a> and the depth-first-search page.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 20: Graph Modeling</span>
+  <span>Next: Lesson 22 — Topological Sort →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

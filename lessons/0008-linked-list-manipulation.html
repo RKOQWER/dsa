@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 8 — Linked List Manipulation (derived)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 1 · Linear structures</p>
+<span class="lesson-no">Lesson 08 of the course</span>
+<h1>Linked List Manipulation — derived from pointer-rewiring hazards</h1>
+
+<p>By the end you'll derive the three-pointer reversal, understand why a dummy head removes edge cases, reuse fast/slow from Lesson 2, and reach a <strong>Hard</strong>.</p>
+
+<!-- ============ SPACED WARM-UP ============ -->
+<h2>Warm-up — recall from earlier lessons (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. What is the loud signal that an array problem wants the index-as-hash trick?</div>
+  <button class="opt" data-correct="true" data-fb="Right — an explicit O(1) extra space / modify-in-place requirement when values sit in the index range.">An O(1)-space requirement with values confined to the index range</button>
+  <button class="opt" data-correct="false" data-fb="Sortedness points to two pointers or binary search, not index-as-hash.">The array is already sorted</button>
+  <button class="opt" data-correct="false" data-fb="Query counts suggest prefix sums, not index-as-hash.">There are many range-sum queries</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. In Lesson 2, how does fast/slow find the middle of a linked list?</div>
+  <button class="opt" data-correct="false" data-fb="You can't index a singly linked list to get its length cheaply without a pass.">By indexing to position n/2 directly</button>
+  <button class="opt" data-correct="true" data-fb="Yes — fast moves two steps per one of slow; when fast hits the end, slow is at the middle.">Fast moves two steps per one of slow; slow lands at the middle</button>
+  <button class="opt" data-correct="false" data-fb="Sorting a linked list for this would be wasteful and unnecessary.">By sorting the list first</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving in-place reversal from scratch</h2>
+<p>Take the canonical case. Reverse a singly linked list in place.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Naive attempt:</strong> you'd like each node to point to its predecessor instead of its successor. But the moment you do <code>node.next = previous</code>, you have overwritten the link to the <em>rest</em> of the list — you can no longer reach the node you were about to visit next. The hazard is that a singly linked node knows only its successor, and reversing destroys exactly that knowledge.</p>
+  <p><strong>Spot the waste / the fix:</strong> the problem isn't conceptual, it's ordering — you must save the successor <em>before</em> you clobber the pointer. So carry a third reference. Keep <code>prev</code> (the node you'll point back to), <code>cur</code> (the node you're reversing now), and stash <code>nxt = cur.next</code> before rewiring.</p>
+  <p><strong>The insight (= the pattern):</strong> the three-pointer dance. At each step: remember <code>nxt = cur.next</code>; flip <code>cur.next = prev</code>; advance <code>prev = cur</code> and <code>cur = nxt</code>. When <code>cur</code> falls off the end, <code>prev</code> is the new head. One pass, O(n) time, O(1) space. The whole pattern is "save the next link before you overwrite it," and nearly every list-rewiring problem is a variation on that discipline.</p>
+</div>
+
+<h3>The deeper principle (so it transfers)</h3>
+<p>Linked-list problems are almost never about clever algorithms; they are about <em>rewiring pointers without losing the piece you still need</em>. Two habits tame them. First, the three-pointer reversal above generalizes to reversing sublists, reordering, and swapping in pairs — always save the successor first. Second, the <strong>dummy head</strong> (a sentinel node placed before the real head) removes the special-casing that makes list code buggy: when you might delete or insert at the front, a dummy means the head is never a special position, so one uniform loop handles every case. And because a list has no indices, positional questions — the middle, the k-th from the end, cycle detection — are answered with the fast/slow two-pointer technique from Lesson 2 rather than by counting.</p>
+
+<!-- ============ SIGNALS ============ -->
+<h2>When to use each technique, and why</h2>
+
+<h3>Three-pointer reversal</h3>
+<p>You use three-pointer reversal whenever a problem asks you to reverse a whole list or a contiguous sublist, or to reorder nodes by relinking rather than by copying values. You walk the nodes carrying <code>prev</code>, <code>cur</code>, and a stashed <code>nxt</code>, flipping each link while preserving the forward chain. It works because stashing the successor before overwriting the pointer is exactly what prevents losing the rest of the list.</p>
+
+<h3>Dummy head sentinel</h3>
+<p>You add a dummy head whenever nodes may be inserted or removed at the front of the list, or when you are building a new list and want a stable handle to return. You attach the dummy before the real head and operate from it, returning <code>dummy.next</code> at the end. It works because the dummy guarantees every real node has a predecessor, so the "what if it's the head" edge case simply disappears and one loop covers all positions.</p>
+
+<h3>Fast/slow for positional queries</h3>
+<p>You use fast/slow when you need a position you cannot index to — the middle node, the k-th from the end, or whether a cycle exists. You advance one pointer faster than the other so their gap or ratio pins down the target. It works for the same reason as in Lesson 2: a fixed speed relationship converts "where is the middle / the cycle" into "where does the fast pointer stop," with no length precomputation.</p>
+
+<!-- ============ TEMPLATE ============ -->
+<h2>The template (reproduce from memory)</h2>
+<pre><code>class ListNode:
+    def __init__(self, val=0, nxt=None):
+        self.val = val
+        self.next = nxt
+
+# Three-pointer reversal
+def reverse(head):
+    prev, cur = None, head
+    while cur:
+        nxt = cur.next      # save before clobbering
+        cur.next = prev     # flip the link
+        prev, cur = cur, nxt
+    return prev             # new head
+
+# Dummy head: remove nth node from end (one pass, fast/slow)
+def remove_nth_from_end(head, n):
+    dummy = ListNode(0, head)
+    fast = slow = dummy
+    for _ in range(n):
+        fast = fast.next            # open a gap of n
+    while fast.next:
+        fast = fast.next
+        slow = slow.next            # slow stops before the target
+    slow.next = slow.next.next      # unlink
+    return dummy.next
+
+# Fast/slow: middle node
+def middle(head):
+    slow = fast = head
+    while fast and fast.next:
+        slow = slow.next
+        fast = fast.next.next
+    return slow
+</code></pre>
+<p>A compact reference is at the <a href="#refcard">bottom of this lesson</a>.</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only. Solve them yourself; ask me if you get stuck.</p>
+<ol>
+  <li><strong>Reverse Linked List</strong> (Easy) — <a href="https://leetcode.com/problems/reverse-linked-list/">link</a></li>
+  <li><strong>Middle of the Linked List</strong> (Easy) — <a href="https://leetcode.com/problems/middle-of-the-linked-list/">link</a></li>
+  <li><strong>Merge Two Sorted Lists</strong> (Easy) — <a href="https://leetcode.com/problems/merge-two-sorted-lists/">link</a></li>
+  <li><strong>Linked List Cycle</strong> (Easy) — <a href="https://leetcode.com/problems/linked-list-cycle/">link</a></li>
+  <li><strong>Remove Nth Node From End of List</strong> (Medium) — <a href="https://leetcode.com/problems/remove-nth-node-from-end-of-list/">link</a></li>
+  <li><strong>Reverse Linked List II</strong> (Medium) — <a href="https://leetcode.com/problems/reverse-linked-list-ii/">link</a></li>
+  <li><strong>Reorder List</strong> (Medium) — <a href="https://leetcode.com/problems/reorder-list/">link</a></li>
+  <li><strong>Add Two Numbers</strong> (Medium) — <a href="https://leetcode.com/problems/add-two-numbers/">link</a></li>
+  <li><strong>Swap Nodes in Pairs</strong> (Medium) — <a href="https://leetcode.com/problems/swap-nodes-in-pairs/">link</a></li>
+  <li><strong>Linked List Cycle II</strong> (Medium) — <a href="https://leetcode.com/problems/linked-list-cycle-ii/">link</a></li>
+  <li><strong>Copy List with Random Pointer</strong> (Medium) — <a href="https://leetcode.com/problems/copy-list-with-random-pointer/">link</a></li>
+  <li><strong>Reverse Nodes in k-Group</strong> (Hard) — <a href="https://leetcode.com/problems/reverse-nodes-in-k-group/">link</a></li>
+  <li><strong>Merge k Sorted Lists</strong> (Hard) — <a href="https://leetcode.com/problems/merge-k-sorted-lists/">link</a></li>
+</ol>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>Reverse Nodes in k-Group</strong> (Hard) — <a href="https://leetcode.com/problems/reverse-nodes-in-k-group/">link</a> — composes the three-pointer reversal (this lesson), a dummy head (this lesson), and the k-th-from-position counting cousin of fast/slow (Lesson 2).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The ask:</strong> reverse the list in consecutive groups of <code>k</code>, leaving any final remainder of fewer than <code>k</code> nodes untouched. The "in groups, relink the boundaries" shape points at repeated local reversal with careful stitching.</p>
+  <p><strong>Piece A — bounded reversal:</strong> reverse exactly <code>k</code> nodes using the three-pointer dance, but stop after <code>k</code> steps rather than at the end of the list. Pure Lesson 8.</p>
+  <p><strong>Piece B — look-ahead count:</strong> before reversing a group, confirm at least <code>k</code> nodes remain by walking <code>k</code> steps ahead — the same "advance a pointer a fixed number of steps" idea behind fast/slow positional queries. If fewer than <code>k</code> remain, leave them as-is.</p>
+  <p><strong>Piece C — dummy head stitching:</strong> a dummy before the head lets you uniformly connect the tail of each reversed group to the head of the next group, with no special case for the first group. Pure Lesson 8.</p>
+  <p>The Hard = (bounded three-pointer reversal) + (fixed-step look-ahead) + (dummy-head stitching). Each piece is something you already own; the difficulty is only in wiring them in the right order.</p>
+</details>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Linked List Manipulation</h2>
+
+<h3>When to use each, and why</h3>
+<ul>
+  <li><strong>Three-pointer reversal.</strong> Reverse a whole list or sublist, or reorder by relinking. Carry <code>prev</code>, <code>cur</code>, and a stashed <code>nxt</code>; flip each link after saving the successor. Saving the successor first is what stops you losing the rest of the list.</li>
+  <li><strong>Dummy head sentinel.</strong> Inserting/removing at the front, or building a new list. Attach a dummy before the head, operate from it, return <code>dummy.next</code>. Every real node now has a predecessor, so the head edge case vanishes.</li>
+  <li><strong>Fast/slow.</strong> Positional queries you can't index: middle, k-th from end, cycle detection. A fixed speed relationship converts the position into "where fast stops" — no length precomputation.</li>
+</ul>
+
+<h3>The one-line reason it works</h3>
+<p>List problems are pointer-rewiring under the hazard that a node knows only its successor; the fix is always to save what you still need before you overwrite it, and a sentinel removes the front-of-list special case.</p>
+
+<h3>Discrimination test</h3>
+<p>If a problem would be trivial on an array but is stated on a list, the challenge is almost certainly careful pointer bookkeeping, not an algorithm — reach for reversal, dummy head, and fast/slow. If you find yourself wanting random access or to "jump to index i", you may instead want to copy to an array first (allowed unless the problem forbids extra space).</p>
+
+<h3>Templates (Python)</h3>
+<pre><code># reversal
+prev, cur = None, head
+while cur:
+    nxt = cur.next; cur.next = prev
+    prev, cur = cur, nxt
+return prev
+
+# dummy head skeleton
+dummy = ListNode(0, head); tail = dummy
+# ... build/relink from tail ...
+return dummy.next</code></pre>
+
+<h3>Complexity and classic problems</h3>
+<p>Usually O(n) time, O(1) space (except when a copy or a heap is involved). Classic set: Reverse Linked List (Easy), Merge Two Sorted Lists (Easy), Reorder List (Medium), Linked List Cycle II (Medium), Reverse Nodes in k-Group (Hard, composed).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> Tangled in which pointer to save when, or why the dummy head simplifies deletion? Draw me the list state and we'll walk the rewiring node by node.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> NeetCode's "Linked List" section covers reversal, dummy heads, and fast/slow clearly — <a href="https://neetcode.io/courses">neetcode.io/courses</a>.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 7: Cyclic &amp; In-place Array Tricks</span>
+  <span>Next: Lesson 9 — Matrix Traversal →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

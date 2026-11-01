@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 31 — Interval / Partition DP</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 5 · Dynamic Programming</p>
+<span class="lesson-no">Lesson 31 of the course</span>
+<h1>Interval / Partition DP — the state is a range, and you choose a split point</h1>
+
+<p>The trickiest common DP family. Here the subproblem is a <em>range</em> <code>[i, j]</code>, and the choice is "where do I split this range?" or "which element of this range do I handle last?" Matrix-chain multiplication, burst balloons, and palindrome partitioning all live here. The mental unlock is learning to iterate over an inner split point <code>k</code> between <code>i</code> and <code>j</code>.</p>
+
+<!-- SPACED RETRIEVAL -->
+<h2>Warm-up — recall (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. In string DP (Lesson 30) for palindromes, what did the state (i, j) represent?</div>
+  <button class="opt" data-correct="true" data-fb="Right — the substring from i to j. Interval DP generalizes this: the state is a range, and now you also choose a split inside it.">The substring/range from i to j</button>
+  <button class="opt" data-correct="false" data-fb="Two separate strings is the LCS/edit case, not the palindrome range.">Positions in two different strings</button>
+  <button class="opt" data-correct="false" data-fb="A single prefix index is the 1D case, not the range case.">A single prefix length</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. Lesson 26 said to fill a table in an order where dependencies are ready first. For a range state (i, j), what should that order be?</div>
+  <button class="opt" data-correct="true" data-fb="Right — by increasing range length, so shorter sub-ranges (which the recurrence depends on) are computed before longer ones.">By increasing length of the range</button>
+  <button class="opt" data-correct="false" data-fb="Plain left-to-right by i fails: dp(i, j) needs shorter ranges that may have larger i.">Left to right by i only</button>
+  <button class="opt" data-correct="false" data-fb="Random order would use not-yet-computed sub-ranges.">Any order works with memoization alone</button>
+</div>
+
+<!-- DERIVATION -->
+<h2>Deriving interval DP via Matrix-Chain / splitting</h2>
+<p>Classic framing: you have a range of things that must be combined, and every way of parenthesizing the combination costs differently. Minimize the total cost. (Matrix-chain multiplication is the textbook case; the same shape powers burst balloons and partitioning.)</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Find the choice: the LAST operation on the range.</strong> Over the range <code>[i, j]</code>, something is combined last — pick the split point <code>k</code> where the final combination happens. That split breaks the range into <code>[i, k]</code> and <code>[k+1, j]</code>, each a smaller interval of the identical problem, plus a cost for joining the two halves.</p>
+  <pre><code>dp(i, j) = min over k in [i, j-1] of
+             dp(i, k) + dp(k+1, j) + cost_of_joining(i, k, j)</code></pre>
+  <p><strong>Why a range must be the state:</strong> the cost of combining a sub-range depends on <em>both</em> its endpoints, not just its length or its start — so you cannot reduce it to a single index. <strong>Spot the overlap:</strong> the same sub-range <code>[i, k]</code> appears under many different outer splits, so caching on <code>(i, j)</code> turns the exponential number of parenthesizations into an O(n²) number of ranges, each costing O(n) to split — O(n³) total.</p>
+</div>
+
+<p><strong>The transferable shape:</strong> interval DP applies when the answer for a range is built by choosing an element or a boundary <em>inside</em> the range to handle last, splitting it into two independent sub-ranges. The two recurring tricks are (1) iterate the split point <code>k</code> across the interval, and (2) fill the table by increasing range length so both halves are ready. Burst Balloons adds one twist: instead of splitting, you choose which balloon is burst <em>last</em>, because that balloon's neighbors are then the fixed boundaries <code>i-1</code> and <code>j+1</code>.</p>
+
+<!-- WHEN / WHY -->
+<h2>When to reach for interval DP, and why</h2>
+<ul>
+  <li><strong>The problem is about a contiguous range, and the natural decision is "where to cut it" or "which item in it to resolve last," after which the two pieces are solved independently.</strong> Because the pieces become independent once you fix the split, the range's answer is a clean combination of two smaller ranges' answers — which is exactly optimal substructure over ranges, and the sub-ranges repeat, giving overlap.</li>
+  <li><strong>The cost of combining depends on the range's endpoints, not merely its length.</strong> That endpoint-dependence is the reason the state must be the full <code>(i, j)</code> pair rather than a single number — it's the signature that distinguishes interval DP from 1D DP.</li>
+  <li><strong>"Last operation" reasoning is cleaner than "first operation."</strong> For problems like burst balloons where removing an element changes its neighbors, asking "what do I do <em>last</em>?" keeps the boundaries fixed and makes the sub-ranges independent; asking "what do I do first?" entangles them.</li>
+</ul>
+
+<!-- TEMPLATE -->
+<h2>The template</h2>
+<pre><code># Generic interval DP: fill by increasing length, iterate split k
+from functools import cache
+def interval_dp(n, join_cost):
+    @cache
+    def dp(i, j):
+        if i >= j: return 0                     # empty or single -> base
+        best = float('inf')
+        for k in range(i, j):                   # split point
+            best = min(best, dp(i, k) + dp(k+1, j) + join_cost(i, k, j))
+        return best
+    return dp(0, n - 1)
+
+# Burst Balloons flavor: choose the LAST balloon burst in (i, j)
+def maxCoins(nums):
+    a = [1] + nums + [1]
+    @cache
+    def dp(i, j):                                # open interval (i, j)
+        if i + 1 == j: return 0
+        best = 0
+        for k in range(i + 1, j):                # k burst last
+            best = max(best, a[i]*a[k]*a[j] + dp(i, k) + dp(k, j))
+        return best
+    return dp(0, len(a) - 1)
+</code></pre>
+
+<!-- PRACTICE -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only. For each, decide what the "split point" or "last operation" is before coding.</p>
+<ol>
+  <li><strong>Palindrome Partitioning II</strong> (Hard) — <a href="https://leetcode.com/problems/palindrome-partitioning-ii/">link</a></li>
+  <li><strong>Minimum Cost to Cut a Stick</strong> (Hard) — <a href="https://leetcode.com/problems/minimum-cost-to-cut-a-stick/">link</a></li>
+  <li><strong>Burst Balloons</strong> (Hard) — <a href="https://leetcode.com/problems/burst-balloons/">link</a></li>
+  <li><strong>Minimum Score Triangulation of Polygon</strong> (Medium) — <a href="https://leetcode.com/problems/minimum-score-triangulation-of-polygon/">link</a></li>
+  <li><strong>Stone Game</strong> (Medium) — <a href="https://leetcode.com/problems/stone-game/">link</a></li>
+  <li><strong>Stone Game VII</strong> (Medium) — <a href="https://leetcode.com/problems/stone-game-vii/">link</a></li>
+  <li><strong>Predict the Winner</strong> (Medium) — <a href="https://leetcode.com/problems/predict-the-winner/">link</a></li>
+  <li><strong>Remove Boxes</strong> (Hard) — <a href="https://leetcode.com/problems/remove-boxes/">link</a></li>
+  <li><strong>Strange Printer</strong> (Hard) — <a href="https://leetcode.com/problems/strange-printer/">link</a></li>
+  <li><strong>Guess Number Higher or Lower II</strong> (Medium) — <a href="https://leetcode.com/problems/guess-number-higher-or-lower-ii/">link</a></li>
+  <li><strong>Minimum Cost Tree From Leaf Values</strong> (Medium) — <a href="https://leetcode.com/problems/minimum-cost-tree-from-leaf-values/">link</a></li>
+  <li><strong>Longest Palindromic Subsequence</strong> (Medium) — <a href="https://leetcode.com/problems/longest-palindromic-subsequence/">link</a></li>
+</ol>
+
+<!-- COMPOSITION -->
+<h2>Composition — a Hard built from interval DP + earlier patterns</h2>
+<p><strong>Palindrome Partitioning II</strong> (Hard) — <a href="https://leetcode.com/problems/palindrome-partitioning-ii/">link</a>. Composes interval/partition DP with a precomputed <strong>string-DP palindrome table</strong> (Lesson 30) and a <strong>1D DP</strong> over cut positions (Lesson 27).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The problem:</strong> cut a string into palindromic substrings using the minimum number of cuts.</p>
+  <p><strong>Pattern A — string-DP palindrome table (Lesson 30):</strong> first precompute <code>isPal[i][j]</code> for all i ≤ j in O(n²) using the range recurrence (<code>s[i]==s[j]</code> and inside is palindrome). This is the interval-state idea from Lesson 30's palindrome case.</p>
+  <p><strong>Pattern B — 1D DP over prefixes (Lesson 27):</strong> let <code>cuts[j]</code> = min cuts for the prefix ending at j. Then <code>cuts[j] = min over i of (cuts[i-1] + 1)</code> for every i where <code>s[i..j]</code> is a palindrome (looked up in O(1) from the table). This is a plain 1D DP whose transition is gated by the palindrome table.</p>
+  <p>The Hard = (interval/range palindrome precompute) + (1D cut DP that queries it). The partition reasoning ("where is the last cut?") is this lesson; the palindrome table is Lesson 30; the linear cut scan is Lesson 27.</p>
+</details>
+
+<h2>Your reps</h2>
+<ol>
+  <li>Do Burst Balloons and force yourself to use "which balloon is burst last," not first. Feel why "first" entangles the sub-ranges.</li>
+  <li>Write the fill-by-increasing-length loop for any one problem by hand so the order stops being mysterious.</li>
+</ol>
+
+<!-- REFERENCE -->
+<h2 id="refcard">Reference card — Interval / Partition DP</h2>
+<h3>When, and why</h3>
+<p>Use it when the subproblem is a contiguous range and the decision is where to split it, or which item in it to resolve last, after which the two pieces are independent. Endpoint-dependent combine cost forces the state to be the full range <code>(i, j)</code>; sub-ranges repeat across outer choices, so caching gives O(n²) states, usually O(n³) overall.</p>
+<h3>The move</h3>
+<p>Define <code>dp(i, j)</code> for the range. Iterate a split point <code>k</code> from i to j (or "k burst/resolved last"), combine <code>dp(i, k)</code> and <code>dp(k±1, j)</code> plus a join cost. Fill by increasing range length so both halves are ready.</p>
+<h3>Template</h3>
+<pre><code>@cache
+def dp(i, j):
+    if i >= j: return base
+    return best over k in (i, j) of dp(i, k) + dp(k+1, j) + join(i, k, j)</code></pre>
+<h3>Classic problems</h3>
+<p>Matrix-chain (textbook), Burst Balloons (H), Minimum Cost to Cut a Stick (H), Palindrome Partitioning II (H), Stone Game (M), Remove Boxes (H).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> Interval DP is where "first operation" reasoning silently breaks. If yours is wrong, tell me what you're choosing at each range — switching to "last operation" is often the entire fix.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> for Burst Balloons, the "burst last" reframing is explained clearly in NeetCode's video; general interval DP is covered in competitive-programming references like <a href="https://cp-algorithms.com/">cp-algorithms.com</a>.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 30: String DP</span>
+  <span>Next: Lesson 32 — DP on Trees &amp; Bitmask →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

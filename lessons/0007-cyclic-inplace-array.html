@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 7 — Cyclic &amp; In-place Array Tricks (derived)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 1 · Linear structures</p>
+<span class="lesson-no">Lesson 07 of the course</span>
+<h1>Cyclic &amp; In-place Array Tricks — derived from the hunt for O(1) space</h1>
+
+<p>By the end you'll derive the "use the array's own indices as a hashmap" trick, understand cyclic sort and the Dutch national flag partition, know the reversal trick for rotation, and reach a <strong>Hard</strong>.</p>
+
+<!-- ============ SPACED WARM-UP ============ -->
+<h2>Warm-up — recall from earlier lessons (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. Why is sorting the universal first move in interval problems?</div>
+  <button class="opt" data-correct="true" data-fb="Right — order on the number line makes overlap local, so an all-pairs search becomes a single forward sweep.">It makes overlap local, turning all-pairs search into one forward sweep</button>
+  <button class="opt" data-correct="false" data-fb="Sorting doesn't reduce the number of intervals.">It removes duplicate intervals</button>
+  <button class="opt" data-correct="false" data-fb="Sorting is O(n log n), not what makes it O(1) space.">It makes the algorithm O(1) space</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. When should you sort intervals by their END rather than their start?</div>
+  <button class="opt" data-correct="false" data-fb="Merging uses start order so overlap is with the left block.">When merging overlapping intervals</button>
+  <button class="opt" data-correct="true" data-fb="Yes — greedy max non-overlapping selection sorts by end, because finishing earliest leaves the most room.">When greedily selecting the most non-overlapping intervals</button>
+  <button class="opt" data-correct="false" data-fb="Max-overlap uses the endpoint sweep line, not an end-sort greedy.">When finding the maximum overlap count</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving the index-as-hash trick from scratch</h2>
+<p>Take the cleanest case. An array of length <code>n</code> contains numbers in the range <code>1..n</code> with one missing; find the missing number using O(1) extra space.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Brute force / obvious fix:</strong> put every value into a hashset, then scan <code>1..n</code> for the one absent. That's O(n) time but O(n) extra space — and the problem forbids extra space.</p>
+  <p><strong>Spot the waste:</strong> the hashset is storing "is value <code>v</code> present?" as its own structure. But you already have an array of length <code>n</code>, and the values are themselves in <code>1..n</code> — the exact index range of the array. You're allocating a second container to record presence information that could ride on the array you already have.</p>
+  <p><strong>The insight (= the pattern):</strong> the array <em>is</em> the hashmap. Use each value to pick a slot and mark presence there — for example, for each value <code>v</code>, flip the sign of <code>a[v-1]</code> to record "<code>v</code> was seen." After one pass, the slot that is still positive points to the value never marked: the missing one. Or, more directly, place each value at its home index (value <code>v</code> belongs at index <code>v-1</code>) by swapping until everything is home — then the first index whose occupant isn't its home value reveals the missing/duplicate. Either way, you encode the auxiliary information inside the input itself, achieving O(1) extra space. Using position as a key is the pattern.</p>
+</div>
+
+<h3>The deeper principle (so it transfers)</h3>
+<p>When the values of an array happen to fall in the same range as its indices (typically <code>0..n-1</code> or <code>1..n</code>), the array can serve as its own hashmap: a value tells you a slot, and you mark that slot — by sign-flipping, by swapping the value into its home position, or by adding a multiple of <code>n</code>. This is what lets "find the missing / duplicate / first-missing-positive" problems hit O(1) space. A sibling idea is the <strong>in-place partition</strong>: when you must rearrange an array into a few known categories without extra space (all zeros, then ones, then twos), you move boundary pointers inward and swap elements into their region, which is the Dutch national flag scheme. And for <strong>rotation</strong>, the reversal identity — reverse the whole array, then reverse the two pieces — rotates in place because reversing twice around a split point is exactly a cyclic shift.</p>
+
+<!-- ============ SIGNALS ============ -->
+<h2>When to use each trick, and why</h2>
+
+<h3>Index-as-hash (cyclic sort / sign marking)</h3>
+<p>You reach for this when the array's entries lie in <code>1..n</code> (or <code>0..n-1</code>) and the problem asks for a missing, duplicate, or misplaced value under an O(1)-space constraint. You either send each value to its home index by swapping, or mark its home slot (sign flip), then scan for the slot that is wrong. It works because the value-range-equals-index-range coincidence lets each value address a unique slot, so presence can be recorded inside the array with no new memory.</p>
+
+<h3>Dutch national flag (three-way in-place partition)</h3>
+<p>You reach for this when you must sort or group elements into a small fixed number of categories (classically 0/1/2, or less-than / equal / greater-than a pivot) in one pass and in place. You maintain three regions with a low pointer, a mid scanner, and a high pointer, swapping each scanned element into its correct region. It works because every element is examined once and sent to its final region immediately, so a single linear sweep produces the partition without any auxiliary array.</p>
+
+<h3>Reversal trick for rotation</h3>
+<p>You reach for the reversal trick when you must rotate an array (or string) by <code>k</code> positions in place. You reverse the entire array, then reverse the first <code>k</code> elements and the remaining <code>n−k</code> elements separately. It works because reversing the whole array puts the elements in the right <em>blocks</em> but backwards, and the two local reversals correct the order within each block, yielding the rotation with O(1) extra space.</p>
+
+<!-- ============ TEMPLATE ============ -->
+<h2>The template (reproduce from memory)</h2>
+<pre><code># Index-as-hash by cyclic placement: find the missing number in 1..n
+def find_missing(a):
+    n = len(a)
+    i = 0
+    while i < n:
+        home = a[i] - 1                         # value v belongs at index v-1
+        if 1 <= a[i] <= n and a[i] != a[home]:
+            a[i], a[home] = a[home], a[i]       # swap into home, don't advance
+        else:
+            i += 1
+    for idx in range(n):
+        if a[idx] != idx + 1:
+            return idx + 1
+    return n + 1
+
+# Dutch national flag: sort an array of 0s, 1s, 2s in place
+def sort_colors(a):
+    low, mid, high = 0, 0, len(a) - 1
+    while mid <= high:
+        if a[mid] == 0:
+            a[low], a[mid] = a[mid], a[low]; low += 1; mid += 1
+        elif a[mid] == 1:
+            mid += 1
+        else:
+            a[mid], a[high] = a[high], a[mid]; high -= 1   # don't advance mid
+
+# Rotate right by k using the reversal trick
+def rotate(a, k):
+    n = len(a); k %= n
+    a.reverse()
+    a[:k] = reversed(a[:k])
+    a[k:] = reversed(a[k:])
+</code></pre>
+<p>A compact reference is at the <a href="#refcard">bottom of this lesson</a>.</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only. Solve them yourself; ask me if you get stuck.</p>
+<ol>
+  <li><strong>Missing Number</strong> (Easy) — <a href="https://leetcode.com/problems/missing-number/">link</a></li>
+  <li><strong>Find All Numbers Disappeared in an Array</strong> (Easy) — <a href="https://leetcode.com/problems/find-all-numbers-disappeared-in-an-array/">link</a></li>
+  <li><strong>Move Zeroes</strong> (Easy) — <a href="https://leetcode.com/problems/move-zeroes/">link</a></li>
+  <li><strong>Rotate Array</strong> (Medium) — <a href="https://leetcode.com/problems/rotate-array/">link</a></li>
+  <li><strong>Sort Colors</strong> (Medium) — <a href="https://leetcode.com/problems/sort-colors/">link</a></li>
+  <li><strong>Find the Duplicate Number</strong> (Medium) — <a href="https://leetcode.com/problems/find-the-duplicate-number/">link</a></li>
+  <li><strong>Find All Duplicates in an Array</strong> (Medium) — <a href="https://leetcode.com/problems/find-all-duplicates-in-an-array/">link</a></li>
+  <li><strong>Set Matrix Zeroes</strong> (Medium) — <a href="https://leetcode.com/problems/set-matrix-zeroes/">link</a></li>
+  <li><strong>Wiggle Sort</strong> (Medium, premium) — <a href="https://leetcode.com/problems/wiggle-sort/">link</a></li>
+  <li><strong>Array of Doubled Pairs</strong> (Medium) — <a href="https://leetcode.com/problems/array-of-doubled-pairs/">link</a></li>
+  <li><strong>First Missing Positive</strong> (Hard) — <a href="https://leetcode.com/problems/first-missing-positive/">link</a></li>
+  <li><strong>Couples Holding Hands</strong> (Hard) — <a href="https://leetcode.com/problems/couples-holding-hands/">link</a></li>
+</ol>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>First Missing Positive</strong> (Hard) — <a href="https://leetcode.com/problems/first-missing-positive/">link</a> — demands O(1) space, which forces the index-as-hash trick (this lesson), combined with the same "find where reality disagrees with the ideal arrangement" scan you used for the missing-number derivation.</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The ask:</strong> find the smallest positive integer absent from an unsorted array, in O(n) time and O(1) extra space. The O(1)-space clause is the loud signal: a hashset is forbidden, so the array must be its own hashmap.</p>
+  <p><strong>Piece A — index-as-hash placement:</strong> the answer must lie in <code>1..n+1</code>, so only values in <code>1..n</code> matter. Cyclically place each such value <code>v</code> at index <code>v-1</code> by swapping, ignoring anything out of range or already home. This is exactly the cyclic-sort move from this lesson.</p>
+  <p><strong>Piece B — scan for the first disagreement:</strong> after placement, walk the array; the first index <code>idx</code> whose occupant isn't <code>idx+1</code> means <code>idx+1</code> is missing. If every slot is correct, the answer is <code>n+1</code>. This is the "first slot where reality breaks the ideal" scan from the derivation.</p>
+  <p>The Hard = (cyclic index-as-hash placement) + (first-mismatch scan), with the whole thing pinned to O(1) space by refusing to allocate. Name the pieces and the famous hard becomes routine.</p>
+  <pre><code>def firstMissingPositive(a):
+    n = len(a)
+    i = 0
+    while i < n:
+        v = a[i]
+        if 1 <= v <= n and a[v - 1] != v:
+            a[i], a[v - 1] = a[v - 1], a[i]
+        else:
+            i += 1
+    for idx in range(n):
+        if a[idx] != idx + 1:
+            return idx + 1
+    return n + 1</code></pre>
+</details>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Cyclic &amp; In-place Array Tricks</h2>
+
+<h3>When to use each, and why</h3>
+<ul>
+  <li><strong>Index-as-hash / cyclic sort.</strong> Values lie in <code>1..n</code> (or <code>0..n-1</code>) and you must find a missing/duplicate/misplaced value in O(1) space. Send each value to its home index or sign-mark its slot, then scan for the wrong slot. The value-range-equals-index-range coincidence lets the array record presence itself.</li>
+  <li><strong>Dutch national flag.</strong> Partition into a few fixed categories in one in-place pass. Low/mid/high pointers swap each element into its region. One linear sweep, no auxiliary array.</li>
+  <li><strong>Reversal trick.</strong> Rotate an array/string by k in place. Reverse the whole thing, then reverse the first k and the rest. Two reversals around the split produce a cyclic shift.</li>
+</ul>
+
+<h3>The one-line reason it works</h3>
+<p>These tricks all exploit that the input array already has enough structure (index range matching value range, or reversibility) to carry the auxiliary information itself, so no extra memory is needed.</p>
+
+<h3>Discrimination test</h3>
+<p>The index-as-hash trick only applies when values are confined to the index range; if values can be arbitrary, you need a real hashset. The loud trigger for these tricks is an explicit "O(1) extra space" or "modify in place" requirement — without that constraint, a plain hashmap or extra array is simpler and equally fast.</p>
+
+<h3>Templates (Python)</h3>
+<pre><code># cyclic placement
+i = 0
+while i < n:
+    v = a[i]
+    if 1 <= v <= n and a[v-1] != v: a[i], a[v-1] = a[v-1], a[i]
+    else: i += 1
+
+# dutch national flag
+low = mid = 0; high = n-1
+while mid <= high:
+    if a[mid] == 0: a[low],a[mid]=a[mid],a[low]; low+=1; mid+=1
+    elif a[mid] == 1: mid += 1
+    else: a[mid],a[high]=a[high],a[mid]; high-=1</code></pre>
+
+<h3>Complexity and classic problems</h3>
+<p>O(n) time, O(1) extra space. Classic set: Missing Number (Easy), Find All Numbers Disappeared (Easy), Sort Colors (Medium), Find the Duplicate Number (Medium), First Missing Positive (Hard).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> Confused about why cyclic sort terminates, or how sign-marking differs from swapping? Bring the problem and we'll trace it slot by slot.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> the cyclic-sort family is explained well in the "Grokking the Coding Interview" cyclic sort pattern and across LeetCode editorials for Missing Number and First Missing Positive — <a href="https://leetcode.com/problems/first-missing-positive/solutions/">LeetCode solutions</a>.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 6: Intervals</span>
+  <span>Next: Lesson 8 — Linked List Manipulation →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

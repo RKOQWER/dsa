@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 10 — Binary Search (classic + on the answer)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 2 · Search, sort &amp; the answer space</p>
+<span class="lesson-no">Lesson 10 of the course</span>
+<h1>Binary Search — and the interview unlock: searching the answer itself</h1>
+
+<p>Everyone knows binary search on a sorted array. The thing that actually separates interview passes from fails is realizing you can binary-search over something that <em>isn't</em> an array at all — the space of possible answers. By the end you'll derive both from one idea, and know the exact precondition that licenses it.</p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Warm-up — recall earlier patterns (no peeking)</h2>
+<p>Reload before you build. Answer from memory, then click.</p>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. You see "longest contiguous subarray whose sum stays under k", positive numbers. Which pattern fits best?</div>
+  <button class="opt" data-correct="true" data-fb="Yes — a contiguous subarray under a running constraint is the sliding-window signal: grow the right edge, shrink the left when the constraint breaks.">Sliding window</button>
+  <button class="opt" data-correct="false" data-fb="Prefix sum answers 'sum of a given range' fast, but 'longest subarray under a constraint' is a window problem.">Prefix sum</button>
+  <button class="opt" data-correct="false" data-fb="Two pointers on a sorted array finds pairs; here you're tracking a window over the original order.">Two pointers on sorted input</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. Why does sorting the array first unlock the two-pointer solution to 3Sum?</div>
+  <button class="opt" data-correct="false" data-fb="Sorting doesn't remove duplicates; you still skip equal neighbours manually.">Because sorting removes duplicate values</button>
+  <button class="opt" data-correct="true" data-fb="Right — once sorted, the sum of the two ends tells you which pointer to move to get closer, turning an O(n²) inner scan into O(n).">It makes the pair-sum give a reliable direction to move</button>
+  <button class="opt" data-correct="false" data-fb="Sorting costs O(n log n); it doesn't make anything O(1).">Because it makes lookups O(1)</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving classic binary search from the waste</h2>
+
+<p>Find a target in a sorted array. <strong>Brute force:</strong> scan left to right, O(n). Where is the waste? You check <code>a[0]</code>, then <code>a[1]</code>… but the array is sorted, so when you look at the <em>middle</em> element and it's larger than the target, <em>every element to its right is also larger</em>. A single comparison just proved an entire half is hopeless — and the linear scan threw that proof away.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p>Look at the middle. One comparison splits the array into "the half that could contain the answer" and "the half that provably can't." Discard the dead half, repeat on the live half. Each step halves the search space → O(log n). <strong>That halving-by-proof IS binary search.</strong> It isn't about arrays; it's about any space where one probe lets you discard half.</p>
+</div>
+
+<p>That last sentence is the whole lesson. Binary search needs exactly one thing: a <strong>monotone predicate</strong> — a yes/no test that is False, False, …, False, then True, True, …, True, with a single flip point. Sortedness is just the most common way to get one. Hold that thought.</p>
+
+<h3>The template that kills off-by-one bugs</h3>
+<p>Most binary-search bugs come from ad-hoc <code>mid ± 1</code> juggling. Avoid them by always framing the problem as "find the first index where a predicate becomes True." This single template answers almost every variant.</p>
+
+<pre><code># Find the FIRST index in [lo, hi) where pred(i) is True.
+# pred must be monotone: False...False True...True
+def first_true(lo, hi, pred):
+    while lo &lt; hi:
+        mid = (lo + hi) // 2
+        if pred(mid):
+            hi = mid          # mid might be the answer; keep it in range
+        else:
+            lo = mid + 1      # mid is dead; discard it
+    return lo                 # first True index, or hi if none
+
+# classic "search value v in sorted a" expressed through it:
+def search(a, v):
+    i = first_true(0, len(a), lambda m: a[m] >= v)
+    return i if i &lt; len(a) and a[i] == v else -1</code></pre>
+
+<!-- ============ THE UNLOCK ============ -->
+<h2>The unlock — binary search on the answer</h2>
+
+<p>Here is the leap. If binary search only needs a monotone yes/no predicate, the thing you search doesn't have to be an array index. It can be <strong>a candidate answer</strong>. This is the single most valuable interview pattern in this part of the course, so let's derive it from a real problem rather than state it.</p>
+
+<h3>Worked derivation: Koko Eating Bananas</h3>
+<p>Koko eats bananas at speed <code>k</code> per hour, one pile at a time; with piles <code>[3,6,7,11]</code> and <code>h</code> hours, find the <em>minimum</em> <code>k</code> that finishes within <code>h</code> hours.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Brute force:</strong> try <code>k = 1, 2, 3, …</code>, and for each compute the hours needed; return the first <code>k</code> that fits. Trying every speed up to <code>max(piles)</code> is O(max · n).</p>
+  <p><strong>Spot the structure:</strong> ask the key question — if speed <code>k</code> is fast enough to finish in time, is <code>k+1</code> also fast enough? Obviously yes; eating faster never takes more hours. So "does speed <code>k</code> finish within <code>h</code> hours?" is a <strong>monotone predicate</strong>: False for small <code>k</code>, then flips to True once and stays True. That is exactly the precondition binary search demands.</p>
+  <p><strong>The insight (= the pattern):</strong> don't search an array — binary-search the <em>value of k</em> in the range <code>[1, max(piles)]</code> for the first <code>k</code> where the predicate is True. The brute force's linear scan over speeds collapses to O(n · log(max)).</p>
+</div>
+
+<pre><code>import math
+def minEatingSpeed(piles, h):
+    def hours_at(k):
+        return sum(math.ceil(p / k) for p in piles)
+    # pred(k): can Koko finish within h hours at speed k?  (monotone True-ward)
+    lo, hi = 1, max(piles)
+    while lo &lt; hi:
+        k = (lo + hi) // 2
+        if hours_at(k) &lt;= h:
+            hi = k
+        else:
+            lo = k + 1
+    return lo</code></pre>
+
+<h3>How to SPOT "binary search on the answer" cold</h3>
+<p>You are looking at this pattern whenever the problem asks for <strong>the smallest (or largest) value that still satisfies some condition</strong>, and that condition behaves monotonically in the value — meaning once it becomes satisfiable at some value, every value in the same direction stays satisfiable. The tells in the wording are phrases like "minimum capacity", "minimum speed", "minimize the largest …", "maximize the smallest …", or any "largest/smallest X such that it's still possible." When you see that shape, define a boolean feasibility function <code>feasible(x)</code>, convince yourself it is monotone, pick the <code>[lo, hi]</code> bounds for <code>x</code>, and binary-search for the flip point. The hard part is never the binary search — it is writing <code>feasible(x)</code> and proving it is monotone.</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice problems — solve these yourself</h2>
+<p>Problems only, deliberately. Ask me if you get stuck. Roughly easy → hard; the later ones are where "on the answer" lives.</p>
+<ol>
+  <li><strong>Binary Search</strong> (Easy) — <a href="https://leetcode.com/problems/binary-search/">link</a></li>
+  <li><strong>Search Insert Position</strong> (Easy) — <a href="https://leetcode.com/problems/search-insert-position/">link</a></li>
+  <li><strong>First Bad Version</strong> (Easy) — <a href="https://leetcode.com/problems/first-bad-version/">link</a></li>
+  <li><strong>Find First and Last Position of Element in Sorted Array</strong> (Medium) — <a href="https://leetcode.com/problems/find-first-and-last-position-of-element-in-sorted-array/">link</a></li>
+  <li><strong>Search in Rotated Sorted Array</strong> (Medium) — <a href="https://leetcode.com/problems/search-in-rotated-sorted-array/">link</a></li>
+  <li><strong>Find Peak Element</strong> (Medium) — <a href="https://leetcode.com/problems/find-peak-element/">link</a></li>
+  <li><strong>Koko Eating Bananas</strong> (Medium) — <a href="https://leetcode.com/problems/koko-eating-bananas/">link</a></li>
+  <li><strong>Capacity To Ship Packages Within D Days</strong> (Medium) — <a href="https://leetcode.com/problems/capacity-to-ship-packages-within-d-days/">link</a></li>
+  <li><strong>Find the Smallest Divisor Given a Threshold</strong> (Medium) — <a href="https://leetcode.com/problems/find-the-smallest-divisor-given-a-threshold/">link</a></li>
+  <li><strong>Kth Smallest Element in a Sorted Matrix</strong> (Medium) — <a href="https://leetcode.com/problems/kth-smallest-element-in-a-sorted-matrix/">link</a></li>
+  <li><strong>Split Array Largest Sum</strong> (Hard) — <a href="https://leetcode.com/problems/split-array-largest-sum/">link</a></li>
+  <li><strong>Median of Two Sorted Arrays</strong> (Hard) — <a href="https://leetcode.com/problems/median-of-two-sorted-arrays/">link</a></li>
+  <li><strong>Find Minimum in Rotated Sorted Array II</strong> (Hard) — <a href="https://leetcode.com/problems/find-minimum-in-rotated-sorted-array-ii/">link</a></li>
+</ol>
+
+<div class="callout trap">
+  <span class="label">Trap — sharpen your discrimination</span>
+  <p><strong>Find Minimum in Rotated Sorted Array II</strong> (Hard) looks like plain binary search, but duplicates break the monotone split: when <code>a[mid] == a[hi]</code> you genuinely cannot tell which half holds the minimum, so you can only shrink <code>hi</code> by one — which degrades to O(n) in the worst case. Lesson: binary search needs the predicate to stay monotone. Duplicates can destroy monotonicity, and when they do, the halving guarantee quietly dies. Always check that your one probe really does kill half.</p>
+</div>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p>Hards are patterns stacked. <strong>Split Array Largest Sum</strong> (Hard) — <a href="https://leetcode.com/problems/split-array-largest-sum/">link</a> — composes <em>binary search on the answer</em> (this lesson) with a <em>greedy sweep</em> that you can derive directly from prefix-style running sums (Lesson 4 territory).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p>Split <code>nums</code> into <code>m</code> contiguous parts to <em>minimize the largest part-sum</em>. The phrase "minimize the largest" is the binary-search-on-the-answer tell.</p>
+  <p><strong>Pattern A (binary search on the answer):</strong> the answer is some value <code>cap</code> — the largest allowed part-sum. Ask "<code>feasible(cap)</code>: can we split into ≤ m parts if no part may exceed <code>cap</code>?" If a given <code>cap</code> works, any larger <code>cap</code> also works → monotone. So binary-search <code>cap</code> in <code>[max(nums), sum(nums)]</code>.</p>
+  <p><strong>Pattern B (greedy running-sum sweep to implement <code>feasible</code>):</strong> walk the array accumulating a running sum; whenever adding the next element would exceed <code>cap</code>, cut a new part and reset the accumulator to that element. Count the parts. This greedy uses the fewest parts possible for that <code>cap</code> — the same running-prefix-sum idea from Lesson 4, used here as a feasibility check rather than a query.</p>
+  <pre><code>def splitArray(nums, m):
+    def feasible(cap):
+        parts, cur = 1, 0
+        for x in nums:
+            if cur + x &gt; cap:
+                parts += 1
+                cur = 0
+            cur += x
+        return parts &lt;= m
+    lo, hi = max(nums), sum(nums)
+    while lo &lt; hi:
+        cap = (lo + hi) // 2
+        if feasible(cap):
+            hi = cap
+        else:
+            lo = cap + 1
+    return lo</code></pre>
+  <p>The Hard = (binary search on the answer value) + (greedy running-sum feasibility check). Neither piece is hard alone. <strong>Name the pieces and the Hard dissolves.</strong></p>
+</details>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Binary Search</h2>
+<p>The compressed version. Re-reading just this should reload the whole pattern.</p>
+
+<h3>When to use it, and why</h3>
+<ul>
+  <li><strong>Classic (search a value / boundary in a sorted array).</strong> Because the array is sorted, one look at the middle proves an entire half can't contain the answer, so you discard half per step → O(log n).</li>
+  <li><strong>On the answer (find the smallest/largest value that still works).</strong> When the question asks for a minimal or maximal value and "does value <code>x</code> work?" is monotone (once True, stays True in one direction), you binary-search the value itself instead of an index. Use it whenever you read "minimum capacity/speed", "minimize the largest", "maximize the smallest", or "largest/smallest X that's still possible."</li>
+</ul>
+
+<h3>The one-line reason it works</h3>
+<p>Binary search needs exactly one thing — a monotone yes/no predicate with a single False→True flip point. One probe at the middle discards everything on the dead side of the flip, halving the space each step.</p>
+
+<h3>How to derive it cold</h3>
+<ul>
+  <li><strong>Classic:</strong> on a sorted array, a comparison at the middle proves one half is hopeless — discard it, repeat.</li>
+  <li><strong>On the answer:</strong> if the problem wants the extreme feasible value, define <code>feasible(x)</code>, prove it's monotone in <code>x</code>, pick <code>[lo, hi]</code> bounds, and search for the flip. The real work is writing and justifying <code>feasible</code>, never the search loop.</li>
+</ul>
+
+<h3>Discrimination test (when it does NOT apply)</h3>
+<p>If no monotone predicate exists — the yes/no answer flips back and forth as the value grows, or duplicates destroy the clean split (Find Minimum in Rotated Sorted Array II) — binary search's halving guarantee is gone. Confirm every probe really eliminates one whole side before you trust O(log n).</p>
+
+<h3>Template (Python)</h3>
+<pre><code># one template for everything: first index where a monotone pred is True
+def first_true(lo, hi, pred):       # search space [lo, hi)
+    while lo &lt; hi:
+        mid = (lo + hi) // 2
+        if pred(mid):
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo
+# value-search: set lo/hi to the answer range, pred = feasible(x)</code></pre>
+
+<h3>Complexity and classic problems</h3>
+<p>Time O(log n) classic, or O(n · log(range)) when each feasibility check is O(n). Space O(1).</p>
+<p>Practice set: Binary Search (E), First Bad Version (E), Search in Rotated Sorted Array (M), Find Peak Element (M), Koko Eating Bananas (M), Capacity To Ship Packages (M), Split Array Largest Sum (H), Median of Two Sorted Arrays (H).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> The usual sticking points here are: proving a feasibility function is monotone, picking the right <code>[lo, hi]</code> bounds, and the <code>lo = mid + 1</code> vs <code>hi = mid</code> choice. If any of those feels shaky, bring the specific problem and we'll work it.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> the cleanest treatment of the "first True" template and binary-search-on-answer is the <a href="https://leetcode.com/discuss/post/786126/python-powerful-ultimate-binary-search-t-rwv8/">"Powerful Ultimate Binary Search Template" write-up on LeetCode discuss</a>. Read it once you've tried Koko yourself.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 9: Matrix Traversal</span>
+  <span>Next: Lesson 11 — Sorting as a Tool →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 32 — DP on Trees &amp; Bitmask DP</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 5 · Dynamic Programming</p>
+<span class="lesson-no">Lesson 32 of the course</span>
+<h1>DP on Trees &amp; Bitmask DP — two state shapes you haven't met yet</h1>
+
+<p>Two DP flavors that confuse people because the <em>state</em> looks unusual. In tree DP the subproblem is "a subtree rooted at a node," and you often carry an extra flag for the node's own choice. In bitmask DP the state is "which elements of a small set have been used," encoded as the bits of an integer. Both are ordinary DP once you accept the odd-looking state.</p>
+
+<!-- SPACED RETRIEVAL -->
+<h2>Warm-up — recall (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. Tree DFS (Lesson 16) taught "return info up the tree." How does tree DP extend that?</div>
+  <button class="opt" data-correct="true" data-fb="Right — tree DP returns a small bundle of optimal sub-answers per node (often one value per local choice), combined at the parent. It's bottom-up tree DFS where the returned info is a DP state.">Each node returns optimal sub-answers (often per local choice) that the parent combines</button>
+  <button class="opt" data-correct="false" data-fb="Tree DP is still DFS-based; it doesn't require BFS.">It requires level-order BFS instead</button>
+  <button class="opt" data-correct="false" data-fb="Trees have no cycles, so visited-sets aren't the point here.">It needs a visited set to avoid cycles</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. From the constraint→complexity habit, what does n ≤ about 20 strongly hint at?</div>
+  <button class="opt" data-correct="true" data-fb="Right — around 2^n is acceptable, which points to bitmask DP or subset enumeration over the small set.">An exponential-in-n approach like bitmask DP is viable</button>
+  <button class="opt" data-correct="false" data-fb="O(n log n) is for n up to ~10^5–10^6, not the tiny-n hint.">An O(n log n) sort-based method</button>
+  <button class="opt" data-correct="false" data-fb="Tiny n doesn't specifically point to two pointers.">A two-pointer sweep</button>
+</div>
+
+<!-- DERIVATION 1: TREE DP -->
+<h2>Deriving tree DP</h2>
+<p>Take <strong>House Robber III</strong>: houses form a binary tree, you cannot rob a node and its direct child, maximize the take. It's House Robber (Lesson 27) on a tree instead of a line.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it — the per-node choice with a flag</span>
+  <p><strong>Find the choice at a node:</strong> rob this node or skip it — same two options as the linear version. The consequence propagates to children:</p>
+  <ul>
+    <li>If you <em>rob</em> this node, you gain its value but must <em>skip both children</em>, so you take each child's best-when-the-child-is-skipped.</li>
+    <li>If you <em>skip</em> this node, each child is free to be robbed or not, so you take each child's overall best.</li>
+  </ul>
+  <p>So each node should return <em>two</em> numbers: the best total for its subtree <strong>if the node is robbed</strong>, and the best <strong>if it is not</strong>. The parent combines the children's two-number bundles. This is exactly bottom-up tree DFS (Lesson 16), where the "info returned up" is a tiny DP state.</p>
+  <pre><code>def dfs(node):
+    if not node: return (0, 0)          # (rob_this, skip_this)
+    L_rob, L_skip = dfs(node.left)
+    R_rob, R_skip = dfs(node.right)
+    rob_this  = node.val + L_skip + R_skip
+    skip_this = max(L_rob, L_skip) + max(R_rob, R_skip)
+    return (rob_this, skip_this)</code></pre>
+  <p>There is no explicit cache here because a tree has no overlapping subproblems across siblings — each subtree is visited once. The "DP" is the per-node optimal-substructure combine, not memoization. That's the defining feature of tree DP: <strong>the recursion structure is the tree itself, and the state is a small bundle per node.</strong></p>
+</div>
+
+<!-- DERIVATION 2: BITMASK DP -->
+<h2>Deriving bitmask DP</h2>
+<p>Take the <strong>Traveling-Salesman-style</strong> problem: n cities (n small, ~15), visit all exactly once, minimize path cost. Brute force tries all n! orderings.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it — the set of used elements IS the state</span>
+  <p><strong>Spot the waste in n! brute force:</strong> two different orderings that visit the same <em>set</em> of cities and end at the same city have identical remaining subproblems — the future only depends on "which cities are still unvisited" and "where I am now," not the exact order I visited the earlier ones. That's overlap.</p>
+  <p><strong>The insight:</strong> encode "which cities have been visited" as the bits of an integer <code>mask</code> (bit c set = city c visited). The state is <code>(mask, current_city)</code>. There are only <code>2ⁿ · n</code> such states, far fewer than n! orderings.</p>
+  <pre><code>from functools import cache
+def tsp(dist, n):
+    @cache
+    def dp(mask, u):                     # visited set = mask, currently at u
+        if mask == (1 << n) - 1:
+            return dist[u][0]            # all visited, return to start
+        best = float('inf')
+        for v in range(n):
+            if not (mask & (1 << v)):    # v not yet visited
+                best = min(best, dist[u][v] + dp(mask | (1 << v), v))
+        return best
+    return dp(1, 0)                      # start at city 0, mask with bit 0 set</code></pre>
+  <p><strong>Why bits:</strong> a subset of a small universe is naturally an integer; set/clear/test are single bit operations (Lesson 13), and the integer is a perfect cache key. The tiny constraint (n ≤ ~20) is the dead giveaway that an exponential-in-n but polynomial-in-2ⁿ approach is intended.</p>
+</div>
+
+<!-- WHEN / WHY -->
+<h2>When to reach for each, and why</h2>
+<ul>
+  <li><strong>Tree DP:</strong> the input is a tree (or a graph you've made acyclic) and the answer for a node depends on optimal answers of its subtrees, often with a local choice (include/exclude the node, color it, match it). Because each subtree is an independent smaller instance and is visited once, a single post-order DFS returning a small state bundle computes everything in O(nodes) — you never need an explicit cache, the tree structure supplies the ordering.</li>
+  <li><strong>Bitmask DP:</strong> you must consider all subsets or all orderings of a <em>small</em> set (n up to roughly 20), and the future depends only on <em>which</em> elements are used, not their order. Encoding the used set as bits gives 2ⁿ states instead of n! orderings, and bit operations make transitions O(1) per element. The small-n constraint is the signal; if n were large, no exponential-in-n method would pass and it isn't bitmask DP.</li>
+</ul>
+
+<!-- TEMPLATE -->
+<h2>The templates</h2>
+<pre><code># Tree DP: post-order, return a small bundle per node
+def tree_dp(root):
+    def dfs(node):
+        if not node: return base_bundle
+        left  = dfs(node.left)
+        right = dfs(node.right)
+        return combine(node, left, right)   # compute this node's state bundle
+    return answer_from(dfs(root))
+
+# Bitmask DP: state = (mask of used elements, maybe a position)
+from functools import cache
+@cache
+def dp(mask, pos):
+    if mask == FULL: return base
+    best = NEUTRAL
+    for e in range(n):
+        if not (mask & (1 << e)):
+            best = combine(best, cost(pos, e) + dp(mask | (1 << e), e))
+    return best
+</code></pre>
+
+<!-- PRACTICE -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only. For tree problems, decide what each node must return; for bitmask problems, decide what the bits mean.</p>
+<ol>
+  <li><strong>House Robber III</strong> (Medium) — <a href="https://leetcode.com/problems/house-robber-iii/">link</a></li>
+  <li><strong>Binary Tree Maximum Path Sum</strong> (Hard) — <a href="https://leetcode.com/problems/binary-tree-maximum-path-sum/">link</a></li>
+  <li><strong>Diameter of Binary Tree</strong> (Easy) — <a href="https://leetcode.com/problems/diameter-of-binary-tree/">link</a></li>
+  <li><strong>Longest Univalue Path</strong> (Medium) — <a href="https://leetcode.com/problems/longest-univalue-path/">link</a></li>
+  <li><strong>Distribute Coins in Binary Tree</strong> (Medium) — <a href="https://leetcode.com/problems/distribute-coins-in-binary-tree/">link</a></li>
+  <li><strong>Binary Tree Cameras</strong> (Hard) — <a href="https://leetcode.com/problems/binary-tree-cameras/">link</a></li>
+  <li><strong>Maximum Sum BST in Binary Tree</strong> (Hard) — <a href="https://leetcode.com/problems/maximum-sum-bst-in-binary-tree/">link</a></li>
+  <li><strong>Partition to K Equal Sum Subsets</strong> (Medium) — <a href="https://leetcode.com/problems/partition-to-k-equal-sum-subsets/">link</a></li>
+  <li><strong>Shortest Path Visiting All Nodes</strong> (Hard) — <a href="https://leetcode.com/problems/shortest-path-visiting-all-nodes/">link</a></li>
+  <li><strong>Find the Shortest Superstring</strong> (Hard) — <a href="https://leetcode.com/problems/find-the-shortest-superstring/">link</a></li>
+  <li><strong>Maximum Students Taking Exam</strong> (Hard) — <a href="https://leetcode.com/problems/maximum-students-taking-exam/">link</a></li>
+  <li><strong>Number of Ways to Wear Different Hats to Each Other</strong> (Hard) — <a href="https://leetcode.com/problems/number-of-ways-to-wear-different-hats-to-each-other/">link</a></li>
+</ol>
+
+<!-- COMPOSITION -->
+<h2>Composition — a Hard built from bitmask DP + earlier patterns</h2>
+<p><strong>Shortest Path Visiting All Nodes</strong> (Hard) — <a href="https://leetcode.com/problems/shortest-path-visiting-all-nodes/">link</a>. Composes bitmask state with <strong>BFS shortest path</strong> on an unweighted graph (Lesson 23) and <strong>graph modeling</strong> (Lesson 20).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The problem:</strong> given an undirected graph, find the length of the shortest walk that visits every node (you may revisit nodes and reuse edges, and may start anywhere).</p>
+  <p><strong>Pattern A — graph modeling with an enriched node (Lesson 20):</strong> a plain "current node" state is not enough, because the answer depends on which nodes you've already covered. Enrich the state to <code>(current_node, visited_mask)</code> — the bitmask records coverage. This is the bitmask idea from this lesson used as part of the graph's state.</p>
+  <p><strong>Pattern B — BFS for shortest path on unweighted edges (Lesson 23):</strong> every edge costs 1, so BFS over the enriched state space finds the shortest number of steps. Start BFS from <em>all</em> nodes simultaneously (each with only its own bit set), and stop when any state's mask becomes all-ones.</p>
+  <p>The Hard = (bitmask coverage state) + (graph modeling to enrich the node) + (unweighted BFS for shortest steps). The bitmask is this lesson; the BFS and modeling are Lessons 20 and 23. No single piece is hard; recognizing that the state is (node, mask) is the unlock.</p>
+</details>
+
+<h2>Your reps</h2>
+<ol>
+  <li>Solve House Robber III and notice it is House Robber (Lesson 27) with the line replaced by a tree and the array replaced by a per-node (rob, skip) bundle.</li>
+  <li>For one bitmask problem, print the states visited and confirm there are ~2ⁿ·n of them, not n! — see the collapse with your own eyes.</li>
+</ol>
+
+<!-- REFERENCE -->
+<h2 id="refcard">Reference card — Tree DP &amp; Bitmask DP</h2>
+<h3>Tree DP — when and why</h3>
+<p>Use it when the input is a tree and a node's answer depends on its subtrees' optimal answers, often with a local include/exclude choice. One post-order DFS returning a small state bundle per node computes everything in O(nodes); the tree supplies the dependency order, so no explicit cache is needed.</p>
+<h3>Bitmask DP — when and why</h3>
+<p>Use it when you consider all subsets or orderings of a small set (n ≲ 20) and the future depends only on which elements are used. Encode the used set as integer bits for 2ⁿ·(extra) states instead of n! orderings; bit ops give O(1) transitions. Small n is the signal.</p>
+<h3>Templates</h3>
+<pre><code># tree: return (choiceA_best, choiceB_best) per node, combine at parent
+# bitmask: dp(mask, pos); iterate unset bits; recurse with mask | (1<<e)</code></pre>
+<h3>Classic problems</h3>
+<p>Tree: House Robber III (M), Binary Tree Max Path Sum (H), Binary Tree Cameras (H). Bitmask: Partition to K Equal Sum Subsets (M), Shortest Path Visiting All Nodes (H), Maximum Students Taking Exam (H).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If a tree DP is wrong, tell me the bundle each node returns; if a bitmask DP is slow, tell me what the bits mean — those two are where these patterns usually break.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> for tree DP, revisit Lesson 16 then read the "rob/no-rob bundle" pattern; for bitmask DP, <a href="https://cp-algorithms.com/">cp-algorithms.com</a> has a clear subset-DP treatment.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 31: Interval / Partition DP</span>
+  <span>Next: Lesson 33 — Monotonic Stack &amp; Queue →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

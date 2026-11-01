@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 1 — The Solving Framework (UPSIR)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 0</p>
+<span class="lesson-no">Lesson 01 of the course</span>
+<h1>The Solving Framework: how to not freeze on a cold problem</h1>
+
+<p>You know the algorithms. The thing that breaks down is the <em>first five minutes</em> staring at an unseen LeetCode problem. This lesson gives you a <strong>repeatable move set</strong> to run in those five minutes, so you're never staring at a blank page again. One tangible win: by the end you'll have a process you can apply to <em>every</em> problem for the rest of this course.</p>
+
+<div class="callout win">
+  <span class="label">The win</span>
+  A fixed sequence — <strong>UPSIR</strong> — that converts "I have no idea" into "here are my candidate patterns and why." Plus a signal→pattern table you'll keep reusing.
+</div>
+
+<h2>Why a process at all?</h2>
+
+<p>Strong solvers don't "see the answer." They run a <strong>search</strong> that reliably surfaces the answer. The reason you freeze isn't missing knowledge — it's that your search is unstructured, so working memory floods and you stall. A checklist offloads that load. This is the same reason surgeons and pilots use checklists for things they already know how to do <a href="#src">[1]</a>.</p>
+
+<h2>Deriving the process from first principles</h2>
+
+<p>Let's not memorize an acronym. Let's <em>build</em> it by asking: what must be true before I can write correct code? Work backwards.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p>To write code, I need a <strong>correct approach</strong>. To trust an approach, I need to have <strong>dry-run it on a tiny example</strong>. To pick an approach, I need <strong>candidate techniques</strong>. To get candidates, I need to read the <strong>signals</strong> in the problem. To read signals correctly, I need to <strong>understand the problem exactly</strong> (inputs, output, constraints, edge cases).</p>
+  <p>Reverse that chain and you get the order you must work in:</p>
+</div>
+
+<p><strong>U → P → S → I → R</strong></p>
+<ol>
+  <li><strong>U — Understand.</strong> Restate the problem in one sentence. Nail down input/output types, constraints (the <code>n ≤ ?</code> that decides your target complexity), and 2 edge cases. <em>Most wrong answers are wrong here, not in the code.</em></li>
+  <li><strong>P — Probe for signals.</strong> Scan for the tells (sorted? substring? "number of ways"? "min/max feasible"?). These map to patterns — the table below is your lookup.</li>
+  <li><strong>S — Select a pattern (via brute force first).</strong> Always state the brute force out loud. Then ask: <em>"what's wasteful here, and which signal tells me how to remove the waste?"</em> That question <em>is</em> pattern selection. (This is the first-principles move we'll use in every lesson.)</li>
+  <li><strong>I — tiny Input dry-run.</strong> Trace your chosen approach on a 3–5 element example <em>by hand</em> before coding. If it breaks here, you just saved 20 minutes.</li>
+  <li><strong>R — Review / code / test / optimize.</strong> Code it, test the edge cases from step U, then ask "can I hit the target complexity from the constraints?"</li>
+</ol>
+
+<h3>The constraints→complexity trick (part of U)</h3>
+<p>The constraint <code>n</code> silently tells you the intended complexity, which narrows the pattern before you even think:</p>
+<table>
+  <thead><tr><th>Constraint</th><th>Target complexity</th><th>Suggests</th></tr></thead>
+  <tbody>
+    <tr><td><code>n ≤ 20</code></td><td>O(2ⁿ) / O(n!)</td><td>backtracking, bitmask subsets</td></tr>
+    <tr><td><code>n ≤ 500</code></td><td>O(n³)</td><td>interval DP, Floyd–Warshall</td></tr>
+    <tr><td><code>n ≤ 5000</code></td><td>O(n²)</td><td>2D DP, pair loops</td></tr>
+    <tr><td><code>n ≤ 10⁵–10⁶</code></td><td>O(n log n) / O(n)</td><td>sort, binary search, two pointers, sliding window, heap</td></tr>
+    <tr><td><code>n ≥ 10⁹</code> (value, not count)</td><td>O(log n)</td><td>binary search <em>on the answer</em>, math</td></tr>
+  </tbody>
+</table>
+
+<h2>The Signal → Pattern lookup table</h2>
+<p>This is the heart of step P. Each row tells you what to notice in the problem, what technique to reach for, and the one-line reason it works — so you can judge the mapping rather than memorize it. Don't try to absorb it all now; a fuller version is embedded at the <a href="#refcard">bottom of this lesson</a> and each pattern gets its own lesson later.</p>
+
+<table>
+  <thead><tr><th>When you see this…</th><th>…reach for</th><th>…because</th></tr></thead>
+  <tbody>
+    <tr><td>The array is <strong>sorted</strong>, or you must find a pair/triple summing to a target</td><td>Two pointers / binary search</td><td>sortedness tells you which way to move to get closer, so you skip whole groups of pairs</td></tr>
+    <tr><td>Longest / shortest / count of a <strong>contiguous subarray or substring</strong> under a constraint</td><td>Sliding window</td><td>a valid stretch stays trackable as you grow or shrink one window, instead of re-checking every substring</td></tr>
+    <tr><td>Many <strong>range-sum</strong> queries, or "subarray sum equals k"</td><td>Prefix sum (with a hashmap)</td><td>a range sum is the difference of two prefix sums, so each query drops to O(1)</td></tr>
+    <tr><td>"Next greater / smaller", histogram area, temperatures, stock span</td><td>Monotonic stack</td><td>the stack holds elements still waiting for an answer; each is pushed and popped once</td></tr>
+    <tr><td>"Number of ways", or min/max over a sequence of choices, with repeated sub-results</td><td>Dynamic programming</td><td>the same subproblem recurs, so caching it once removes the exponential blow-up</td></tr>
+    <tr><td>"Minimize the maximum" / "largest value that still works"</td><td>Binary search on the answer</td><td>feasibility is monotone, so you can binary-search the answer value itself</td></tr>
+    <tr><td>Generate <strong>all</strong> subsets / permutations / combinations, or fill a constraint grid</td><td>Backtracking</td><td>you build a candidate step by step and undo the last choice when it fails</td></tr>
+    <tr><td>Grid, dependencies, connections, "is X reachable", states with moves</td><td>Graph traversal (BFS / DFS / topo-sort / union-find)</td><td>the problem is secretly nodes and edges, so a traversal visits each once</td></tr>
+    <tr><td>"Top K", "K largest", "merge K", running median</td><td>Heap</td><td>a heap hands you the current best in O(log n) without sorting everything</td></tr>
+    <tr><td>Prefix lookups over many strings, or a dictionary of words</td><td>Trie</td><td>shared prefixes are stored once, so a lookup costs the word length, not the dictionary size</td></tr>
+  </tbody>
+</table>
+
+<h2>Try it: run P on these (no coding, just name the pattern)</h2>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. "Given an array of positive ints and a value <code>k</code>, find the length of the <strong>longest subarray</strong> whose sum is ≤ <code>k</code>." Which signal fires?</div>
+  <button class="opt" data-correct="false" data-fb="Close, but binary-search-on-answer fits 'minimize the maximum' style problems. Here the ask is a contiguous subarray with a running constraint.">Binary search on the answer</button>
+  <button class="opt" data-correct="true" data-fb="Yes — 'longest subarray with a constraint on its sum' is the textbook sliding-window signal: expand the right edge, shrink the left when the constraint breaks.">Sliding window</button>
+  <button class="opt" data-correct="false" data-fb="Backtracking explores all subsets — exponential. The contiguous + single-constraint shape means you can do it in O(n) with a window.">Backtracking over subarrays</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. "Split the array into <code>m</code> contiguous parts to <strong>minimize the largest part-sum</strong>." Signal?</div>
+  <button class="opt" data-correct="true" data-fb="Yes — 'minimize the maximum' + a monotone feasibility check ('can we do it with largest-sum ≤ X?') is the binary-search-on-answer signature. This is literally Split Array Largest Sum (LeetCode Hard 410).">Binary search on the answer</button>
+  <button class="opt" data-correct="false" data-fb="A window gives contiguous subarrays, but here you choose cut points to optimize a max — that's a search over the answer value, not over positions.">Sliding window</button>
+  <button class="opt" data-correct="false" data-fb="DP does solve it, but the constraint (values up to 10^9) and the 'minimize the max' phrasing point to the cleaner O(n log sum) binary-search-on-answer.">Prefix sum</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">3. "Return the number of distinct ways to climb <code>n</code> stairs taking 1, 2, or 3 steps." Signal?</div>
+  <button class="opt" data-correct="false" data-fb="A window is for contiguous ranges of an array — there's no array here, just a count of choice-sequences.">Sliding window</button>
+  <button class="opt" data-correct="false" data-fb="You could enumerate all paths with backtracking, but 'number of ways' with overlapping subproblems is the DP tell — backtracking would be exponential.">Backtracking</button>
+  <button class="opt" data-correct="true" data-fb="Yes — 'number of ways' + the count of ways to reach n reuses ways(n-1), ways(n-2), ways(n-3). Overlapping subproblems ⇒ DP.">Dynamic programming</button>
+</div>
+
+<h2>A trap: when the obvious signal lies</h2>
+<div class="callout trap">
+  <span class="label">Trap</span>
+  <p>"Find the <strong>k-th largest</strong> element in an array." The words "k-th largest" scream <em>heap</em> (and a heap works, O(n log k)). But the <em>better</em> answer is <strong>Quickselect</strong>, O(n) average. Lesson: the signal gives you <em>candidates</em>, not a verdict. Step S still asks "is there less waste?" — here, a heap re-sorts more than needed; partitioning throws away half each time.</p>
+</div>
+<p>This is why UPSIR keeps brute force → "what's wasteful?" at its center. The table starts your search; the waste-question finishes it. That habit is what generalizes to problems the table doesn't cover.</p>
+
+<h2>Your reps before next session</h2>
+<ol>
+  <li>Pick <strong>any 3 LeetCode mediums</strong> you haven't seen, from different topics. For each, write only steps <strong>U, P, S</strong> (understand, signal, chosen pattern + the waste you're removing) — <em>do not code them</em>. Bring them to me and I'll critique your <em>approach</em>.</li>
+  <li>Re-read the <a href="#refcard">UPSIR checklist below</a> once. Target: recall the 5 steps from memory.</li>
+</ol>
+
+<details class="reveal">
+  <summary>Worked example: full UPSIR on "Trapping Rain Water" (LeetCode Hard 42)</summary>
+  <p><strong>U:</strong> input = heights array; output = total trapped water (int). Water above index i = min(maxLeft, maxRight) − height[i], clamped at 0. Edge: empty or strictly increasing array ⇒ 0.</p>
+  <p><strong>P:</strong> each position depends on a max from the left and a max from the right ⇒ smells like precomputed prefix/suffix, or two pointers from both ends.</p>
+  <p><strong>S:</strong> brute force = for each i, scan left and right for maxes → O(n²). Waste = recomputing the same maxes. Remove it two ways: (a) prefix-max + suffix-max arrays → O(n) time, O(n) space; (b) realize the smaller of the two running maxes is the binding constraint, so <strong>two pointers</strong> moving inward → O(n) time, O(1) space. The two-pointer insight is <em>derived</em>, not memorized: "the shorter wall decides the water, so advance the shorter side."</p>
+  <p><strong>I:</strong> dry-run <code>[0,1,0,2]</code> by hand → 1 unit. <strong>R:</strong> code the two-pointer version, test <code>[]</code>, <code>[3,2,1]</code>, confirm O(n).</p>
+  <p>Notice: a <em>Hard</em> fell out of the same five steps. That's the whole point.</p>
+</details>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> Stuck on why a signal maps to a pattern? Want me to run UPSIR live on a problem you're stuck on? Just ask in the chat. That back-and-forth is where the real learning happens.
+</div>
+
+<!-- ============ EMBEDDED REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — the UPSIR checklist</h2>
+<p>The compressed version. Run this top to bottom on any unseen problem; a 2-minute re-read of this section should reload the whole process.</p>
+
+<ol>
+  <li><strong>U — Understand.</strong> Restate the problem in one sentence. Pin down the input and output types, read the constraints to infer your target complexity, and write two edge cases. Most wrong answers go wrong here, not in the code.</li>
+  <li><strong>P — Probe for signals.</strong> Scan for the tells (sorted? contiguous substring? "number of ways"? "minimize the maximum"?) and list the candidate patterns they map to.</li>
+  <li><strong>S — Select.</strong> First classify the problem (see the fork below). Then state the brute force and ask: "what is wasteful here, and which signal tells me how to remove the waste?" The answer to that question is your pattern.</li>
+  <li><strong>I — tiny Input dry-run.</strong> Trace your chosen approach by hand on a 3–5 element example before you write any code. If it breaks here, you just saved twenty minutes.</li>
+  <li><strong>R — Review.</strong> Code it, test the edge cases you wrote in step U, then confirm you actually hit the target complexity the constraints implied.</li>
+</ol>
+
+<div class="callout derive">
+  <span class="label">The step-S fork — read this when you can't find a brute force</span>
+  <p>Not every problem has a slow brute force sitting beneath the pattern. Classify first:</p>
+  <ul>
+    <li><strong>Optimization problem</strong> (it asks for a min, max, longest, best, or fewest): the brute force really is different from the pattern. State the slow version, find the waste, and the waste reveals the pattern. For example, Koko Eating Bananas: trying every possible eating speed is the slow version, and binary search on that speed is the fast one.</li>
+    <li><strong>Traversal or enumeration problem</strong> (it asks you to count, find, or list all of something): there is no slower baseline. The correct traversal <em>is</em> the answer, so "brute force" and "chosen pattern" are the same sentence — just make it concrete. For example, Number of Islands: you visit every cell and flood-fill each group with DFS or BFS; there is no dumber version to improve on.</li>
+  </ul>
+  <p>If you find yourself hunting for a brute force beneath a traversal problem, stop — you were already done at step P.</p>
+</div>
+
+<h3>Constraint → complexity → likely pattern</h3>
+<p>The size limit on <code>n</code> silently tells you the intended complexity, which narrows the pattern before you even start thinking.</p>
+<table>
+  <thead><tr><th>If n is about…</th><th>…aim for</th><th>…which suggests</th></tr></thead>
+  <tbody>
+    <tr><td><code>≤ 20</code></td><td>O(2ⁿ) or O(n!)</td><td>backtracking, bitmask over subsets</td></tr>
+    <tr><td><code>≤ 500</code></td><td>O(n³)</td><td>interval DP, Floyd–Warshall</td></tr>
+    <tr><td><code>≤ 5000</code></td><td>O(n²)</td><td>2D DP, nested pair loops</td></tr>
+    <tr><td><code>≤ 10⁵–10⁶</code></td><td>O(n log n) or O(n)</td><td>sorting, binary search, two pointers, sliding window, heap</td></tr>
+    <tr><td>a <em>value</em> up to <code>10⁹</code> (not a count)</td><td>O(log n)</td><td>binary search on the answer, or math</td></tr>
+  </tbody>
+</table>
+
+<footer class="src" id="src">
+  <strong>Primary source to read:</strong> the idea of a structured problem-solving loop traces to Pólya, <em>How to Solve It</em> (1945) — understand, plan, execute, review. A free summary of its four steps: <a href="https://math.hawaii.edu/home/pdf/putnam/PolyaHowToSolveIt.pdf">math.hawaii.edu — Pólya's How to Solve It</a>.<br>
+  [1] On checklists for experts: Gawande, <em>The Checklist Manifesto</em>.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← You're at the start</span>
+  <span>Next: Lesson 2 — Two Pointers (derived from brute force) →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

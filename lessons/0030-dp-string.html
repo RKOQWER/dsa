@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 30 — String DP</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 5 · Dynamic Programming</p>
+<span class="lesson-no">Lesson 30 of the course</span>
+<h1>String DP — two pointers into two strings as the state</h1>
+
+<p>When a problem compares or transforms one string against another (or against itself), the DP state is almost always a pair of indices — one into each string — representing "the subproblem on the two suffixes (or prefixes) from here on." LCS, edit distance, palindromic subsequence, and wildcard/regex matching are all this shape. The hard part is never the recurrence; it's seeing that a string problem is really a walk over a 2D index grid.</p>
+
+<!-- SPACED RETRIEVAL -->
+<h2>Warm-up — recall (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. Grid DP (Lesson 29) had state (row, col). What will the state be for comparing two strings?</div>
+  <button class="opt" data-correct="true" data-fb="Right — one index into each string, (i, j). It's the same 2D table, just indexed by positions in two strings.">An index into each string, (i, j)</button>
+  <button class="opt" data-correct="false" data-fb="A single index can't capture progress through two independent strings.">A single combined index</button>
+  <button class="opt" data-correct="false" data-fb="Hashing substrings isn't the DP state here.">A hash of both substrings</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. From Lesson 26, which combine operator gives the LENGTH of a longest common subsequence?</div>
+  <button class="opt" data-correct="true" data-fb="Right — max, because you want the longest; and +1 when characters match to extend the common run.">max (with +1 on a match)</button>
+  <button class="opt" data-correct="false" data-fb="Addition alone counts ways, not longest length.">plain addition</button>
+  <button class="opt" data-correct="false" data-fb="or is for feasibility, not for a maximum length.">or</button>
+</div>
+
+<!-- DERIVATION -->
+<h2>Deriving string DP via LCS</h2>
+<p>Longest Common Subsequence: given strings <code>a</code> and <code>b</code>, find the length of the longest subsequence present in both (characters in order, not necessarily contiguous).</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Find the choice by looking at the first character of each remaining suffix.</strong> Stand at <code>a[i]</code> and <code>b[j]</code>. Compare them:</p>
+  <ul>
+    <li>If <code>a[i] == b[j]</code>, this character can safely be part of the common subsequence. Take it (+1) and advance both: <code>1 + dp(i+1, j+1)</code>.</li>
+    <li>If they differ, at least one of them is not in the LCS. You don't know which, so try both and keep the better: <code>max(dp(i+1, j), dp(i, j+1))</code>.</li>
+  </ul>
+  <p><strong>The state is the pair of positions</strong> <code>(i, j)</code>, because your progress through <em>both</em> strings determines the subproblem.</p>
+  <pre><code>dp(i, j) = 1 + dp(i+1, j+1)            if a[i] == b[j]
+         = max(dp(i+1, j), dp(i, j+1)) otherwise</code></pre>
+  <p><strong>Spot the overlap:</strong> many different alignment paths reach the same <code>(i, j)</code>, so caching the pair collapses the exponential branching to an O(|a|·|b|) table — the same 2D grid as Lesson 29, now indexed by two strings.</p>
+</div>
+
+<p><strong>The transferable shape:</strong> every two-string DP compares the current characters and branches on match-vs-mismatch, advancing one or both pointers. Edit distance is LCS with three mismatch branches (insert, delete, replace) instead of two. A palindrome problem is this template with the string compared against its own reverse, or with the two pointers moving inward from both ends of one string.</p>
+
+<!-- WHEN / WHY -->
+<h2>When to reach for string DP, and why</h2>
+<ul>
+  <li><strong>The problem aligns, matches, or transforms one sequence against another (or a string against itself), and asks for a best length, a minimum number of edits, or a yes/no match.</strong> Because the decision at each step depends only on the current pair of positions and the choices advance those positions monotonically, the subproblems form a 2D grid you can fill once — turning the exponential number of alignments into O(n·m) work.</li>
+  <li><strong>Characters are compared, and on a mismatch there are a small fixed set of moves (skip in a, skip in b, or edit).</strong> That small branching factor is what makes the table cheap; if a mismatch allowed arbitrary jumps, it would not be this pattern.</li>
+  <li><strong>For self-palindrome problems, the two pointers index the same string from both ends.</strong> The state is still a pair <code>(i, j)</code> meaning "the substring from i to j," and you shrink inward — the same grid, read as a triangle.</li>
+</ul>
+
+<!-- TEMPLATE -->
+<h2>The template</h2>
+<pre><code># LCS length, top-down
+from functools import cache
+def lcs(a, b):
+    @cache
+    def dp(i, j):
+        if i == len(a) or j == len(b): return 0
+        if a[i] == b[j]:
+            return 1 + dp(i+1, j+1)
+        return max(dp(i+1, j), dp(i, j+1))
+    return dp(0, 0)
+
+# Edit distance — same shape, three mismatch moves
+def editDistance(a, b):
+    @cache
+    def dp(i, j):
+        if i == len(a): return len(b) - j   # insert the rest
+        if j == len(b): return len(a) - i   # delete the rest
+        if a[i] == b[j]:
+            return dp(i+1, j+1)
+        return 1 + min(dp(i+1, j),     # delete a[i]
+                       dp(i, j+1),     # insert b[j]
+                       dp(i+1, j+1))   # replace
+    return dp(0, 0)
+</code></pre>
+
+<!-- PRACTICE -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only. For each, decide whether the two pointers index two different strings or one string from both ends.</p>
+<ol>
+  <li><strong>Is Subsequence</strong> (Easy) — <a href="https://leetcode.com/problems/is-subsequence/">link</a></li>
+  <li><strong>Longest Common Subsequence</strong> (Medium) — <a href="https://leetcode.com/problems/longest-common-subsequence/">link</a></li>
+  <li><strong>Edit Distance</strong> (Medium) — <a href="https://leetcode.com/problems/edit-distance/">link</a></li>
+  <li><strong>Longest Palindromic Subsequence</strong> (Medium) — <a href="https://leetcode.com/problems/longest-palindromic-subsequence/">link</a></li>
+  <li><strong>Longest Palindromic Substring</strong> (Medium) — <a href="https://leetcode.com/problems/longest-palindromic-substring/">link</a></li>
+  <li><strong>Delete Operation for Two Strings</strong> (Medium) — <a href="https://leetcode.com/problems/delete-operation-for-two-strings/">link</a></li>
+  <li><strong>Minimum ASCII Delete Sum for Two Strings</strong> (Medium) — <a href="https://leetcode.com/problems/minimum-ascii-delete-sum-for-two-strings/">link</a></li>
+  <li><strong>Uncrossed Lines</strong> (Medium) — <a href="https://leetcode.com/problems/uncrossed-lines/">link</a></li>
+  <li><strong>Distinct Subsequences</strong> (Hard) — <a href="https://leetcode.com/problems/distinct-subsequences/">link</a></li>
+  <li><strong>Interleaving String</strong> (Medium) — <a href="https://leetcode.com/problems/interleaving-string/">link</a></li>
+  <li><strong>Regular Expression Matching</strong> (Hard) — <a href="https://leetcode.com/problems/regular-expression-matching/">link</a></li>
+  <li><strong>Wildcard Matching</strong> (Hard) — <a href="https://leetcode.com/problems/wildcard-matching/">link</a></li>
+</ol>
+
+<!-- COMPOSITION -->
+<h2>Composition — a Hard built from string DP + earlier patterns</h2>
+<p><strong>Regular Expression Matching</strong> (Hard) — <a href="https://leetcode.com/problems/regular-expression-matching/">link</a>. Composes the two-pointer string-DP grid with careful <em>case analysis</em> on the pattern, and the feasibility-combine (<code>or</code>) idea from DP recognition (Lesson 26).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The problem:</strong> match string <code>s</code> against pattern <code>p</code> where <code>.</code> matches any single char and <code>*</code> means "zero or more of the preceding element." Return whether the whole string matches.</p>
+  <p><strong>Pattern A — two-pointer string DP:</strong> state <code>dp(i, j)</code> = does <code>s[i:]</code> match <code>p[j:]</code>? Same (i, j) grid as LCS/edit distance.</p>
+  <p><strong>Pattern B — mismatch case analysis, combined with or (Lesson 26):</strong> the branching is richer but still finite. First decide if the current chars match (<code>s[i] == p[j]</code> or <code>p[j] == '.'</code>). Then look at whether <code>p[j+1]</code> is a <code>*</code>:
+  <ul>
+    <li>If the next pattern char is <code>*</code>: either use zero copies (skip <code>p[j:j+2]</code> → <code>dp(i, j+2)</code>) <em>or</em>, if the current char matches, consume one char of s and stay on the same star (<code>dp(i+1, j)</code>). Combine the two with <code>or</code>.</li>
+    <li>Otherwise: require a current match and advance both (<code>dp(i+1, j+1)</code>).</li>
+  </ul></p>
+  <p>The Hard = (string-DP (i,j) grid) + (finite case analysis on the pattern) + (or-combine for "any branch works"). The grid and the combine you already own; the only new thing is enumerating the star's two behaviors cleanly.</p>
+</details>
+
+<h2>Your reps</h2>
+<ol>
+  <li>Solve Longest Palindromic Subsequence by feeding the string and its reverse into LCS — that reduction is the lesson.</li>
+  <li>Do Edit Distance and map each of its three branches to insert/delete/replace by hand on a 3×3 example.</li>
+</ol>
+
+<!-- REFERENCE -->
+<h2 id="refcard">Reference card — String DP</h2>
+<h3>When, and why</h3>
+<p>Use it when you align, match, or transform one sequence against another (or a string against itself) and want a best length, a minimum edit count, or a yes/no match. The decision at each step depends only on the current pair of positions and advances them monotonically, so the subproblems form a 2D (i, j) grid fillable once in O(n·m) — collapsing exponentially many alignments.</p>
+<h3>The move</h3>
+<p>State is a pair of indices. Compare <code>a[i]</code> and <code>b[j]</code>: on a match, advance both (and +1 or free, per the question); on a mismatch, branch over the small set of moves (skip a, skip b, edit) and combine with max/min, +, or or. For palindromes, index one string from both ends.</p>
+<h3>Template</h3>
+<pre><code>@cache
+def dp(i, j):
+    if done(i, j): return base
+    if a[i] == b[j]: return match_value + dp(i+1, j+1)
+    return combine(dp(i+1, j), dp(i, j+1))   # + maybe dp(i+1, j+1) for replace</code></pre>
+<h3>Classic problems</h3>
+<p>LCS (M), Edit Distance (M), Longest Palindromic Subsequence (M), Distinct Subsequences (H), Interleaving String (M), Regular Expression Matching (H), Wildcard Matching (H).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If a string DP's base cases trip you up (empty string against a pattern, trailing stars), paste the case — that boundary is where almost all string-DP bugs live.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> <a href="https://neetcode.io/courses">neetcode.io/courses</a> (2-D DP, LCS and Edit Distance). For regex/wildcard, read the two-case star analysis slowly.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 29: Grid DP</span>
+  <span>Next: Lesson 31 — Interval / Partition DP →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

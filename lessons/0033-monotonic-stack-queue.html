@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 33 — Monotonic Stack &amp; Queue</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 6 · Stack / Queue / Heap</p>
+<span class="lesson-no">Lesson 33 of the course</span>
+<h1>Monotonic Stack &amp; Queue — the structure that answers "next greater" in one pass</h1>
+
+<p>A monotonic stack keeps its elements sorted (increasing or decreasing) by discarding ones that can never again be the answer. It turns a whole class of O(n²) "for each element, scan for the next/previous element bigger/smaller than it" problems into O(n). Once you see <em>why</em> you're allowed to throw elements away, the pattern is unmistakable.</p>
+
+<!-- SPACED RETRIEVAL -->
+<h2>Warm-up — recall (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. Grid DP (Lesson 29) mentioned Maximal Rectangle is best done after this lesson. Why?</div>
+  <button class="opt" data-correct="true" data-fb="Right — each row reduces to a histogram, and largest-rectangle-in-histogram is the signature monotonic-stack problem.">Each row becomes a histogram, solved by largest-rectangle-in-histogram (a monotonic stack)</button>
+  <button class="opt" data-correct="false" data-fb="It isn't a shortest-path problem.">Because it needs Dijkstra</button>
+  <button class="opt" data-correct="false" data-fb="Binary search isn't the core of Maximal Rectangle.">Because it needs binary search on the answer</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. Two pointers (Lesson 2) discarded candidates it could prove were useless. A monotonic stack does the same. What makes an element provably useless there?</div>
+  <button class="opt" data-correct="true" data-fb="Right — a newly arrived element that is bigger (or smaller) 'shadows' earlier ones, which can never be the next-greater answer for anything to the right, so they're popped.">A later element shadows it, so it can never be the answer for anything further right</button>
+  <button class="opt" data-correct="false" data-fb="Duplicates aren't automatically useless; the shadowing argument is the reason.">It is a duplicate value</button>
+  <button class="opt" data-correct="false" data-fb="Position alone doesn't make an element useless.">It is at an even index</button>
+</div>
+
+<!-- DERIVATION -->
+<h2>Deriving the monotonic stack</h2>
+<p>Take <strong>Next Greater Element</strong>: for each element, find the first element to its right that is strictly greater; if none, report -1.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Brute force:</strong> for each i, scan right until you find something bigger → O(n²).</p>
+  <p><strong>Spot the waste by asking who is still "waiting" for an answer.</strong> Walk left to right. An element that hasn't yet found a greater element to its right is <em>waiting</em>. Here's the key observation: keep the waiting elements in a stack, and suppose a new element <code>x</code> arrives. Any waiting element smaller than <code>x</code> has just found its answer — it's <code>x</code>. Moreover, once such a smaller element is resolved and removed, it is gone forever and can't block anyone.</p>
+  <p><strong>The deeper insight — why the stack stays sorted.</strong> After resolving everyone smaller than <code>x</code>, the elements still waiting are all ≥ <code>x</code>, and we push <code>x</code> on top. So the stack is always in decreasing order from bottom to top. That ordering is not something we impose; it is a <em>consequence</em> of popping everyone the new element shadows. And "shadows" is the whole point: if <code>x</code> is taller than the elements below it, those elements can never be the next-greater for anything further right, because <code>x</code> stands in front of them — so discarding them loses nothing.</p>
+  <pre><code>def next_greater(nums):
+    n = len(nums)
+    ans = [-1] * n
+    stack = []                        # holds indices, values decreasing
+    for i, x in enumerate(nums):
+        while stack and nums[stack[-1]] < x:
+            ans[stack.pop()] = x      # x is the next greater for popped index
+        stack.append(i)
+    return ans</code></pre>
+  <p>Each index is pushed once and popped at most once → O(n). The stack <em>is</em> the set of still-unanswered elements, kept monotone for free.</p>
+</div>
+
+<p><strong>The transferable shape:</strong> reach for a monotonic stack whenever each element needs the nearest element in some direction that is greater or smaller than it, or when you're computing spans/areas bounded by such elements. Flip the comparison (<code>&lt;</code> vs <code>&gt;</code>) to switch between next-greater and next-smaller; iterate right-to-left to get the <em>previous</em> element instead of the next. The <strong>monotonic queue</strong> (a deque) is the same idea for a <em>sliding window</em>: it keeps candidates for the window's max/min and evicts from the front when they fall out of the window and from the back when a new element shadows them.</p>
+
+<!-- WHEN / WHY -->
+<h2>When to reach for it, and why</h2>
+<ul>
+  <li><strong>Each element needs the nearest greater/smaller element to its left or right (next greater, previous smaller, stock span, daily temperatures).</strong> Because a newly arrived element permanently resolves and removes every waiting element it shadows, each element is touched O(1) amortized times, giving O(n) instead of the O(n²) of scanning for each element.</li>
+  <li><strong>You're measuring an area or span bounded by "the first smaller element on each side" (largest rectangle in a histogram, maximal rectangle).</strong> The stack hands you the left and right boundaries of each bar's maximal rectangle exactly when the bar is popped, so you compute all boundaries in one pass.</li>
+  <li><strong>You need the max or min of a sliding window as it moves (sliding window maximum).</strong> Use a monotonic <em>deque</em>: it maintains the window's candidates in sorted order, evicting shadowed ones from the back and expired ones from the front, so the window's extreme is always at the front in O(1).</li>
+</ul>
+
+<!-- TEMPLATE -->
+<h2>The templates</h2>
+<pre><code># Monotonic stack — next greater element (indices, values decreasing)
+stack = []
+for i, x in enumerate(nums):
+    while stack and nums[stack[-1]] < x:
+        resolve(stack.pop(), i)      # x at i is the next greater
+    stack.append(i)
+
+# Monotonic deque — sliding window maximum, window size k
+from collections import deque
+def maxSlidingWindow(nums, k):
+    dq, out = deque(), []            # dq holds indices, values decreasing
+    for i, x in enumerate(nums):
+        while dq and nums[dq[-1]] <= x:   # x shadows smaller tail
+            dq.pop()
+        dq.append(i)
+        if dq[0] == i - k:                # front fell out of the window
+            dq.popleft()
+        if i >= k - 1:
+            out.append(nums[dq[0]])       # front is the window max
+    return out
+</code></pre>
+
+<!-- PRACTICE -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only. For each, decide the direction (left/right) and the comparison (greater/smaller).</p>
+<ol>
+  <li><strong>Next Greater Element I</strong> (Easy) — <a href="https://leetcode.com/problems/next-greater-element-i/">link</a></li>
+  <li><strong>Next Greater Element II</strong> (Medium) — <a href="https://leetcode.com/problems/next-greater-element-ii/">link</a></li>
+  <li><strong>Daily Temperatures</strong> (Medium) — <a href="https://leetcode.com/problems/daily-temperatures/">link</a></li>
+  <li><strong>Online Stock Span</strong> (Medium) — <a href="https://leetcode.com/problems/online-stock-span/">link</a></li>
+  <li><strong>Remove Duplicate Letters</strong> (Medium) — <a href="https://leetcode.com/problems/remove-duplicate-letters/">link</a></li>
+  <li><strong>Remove K Digits</strong> (Medium) — <a href="https://leetcode.com/problems/remove-k-digits/">link</a></li>
+  <li><strong>Sum of Subarray Minimums</strong> (Medium) — <a href="https://leetcode.com/problems/sum-of-subarray-minimums/">link</a></li>
+  <li><strong>Sliding Window Maximum</strong> (Hard) — <a href="https://leetcode.com/problems/sliding-window-maximum/">link</a></li>
+  <li><strong>Largest Rectangle in Histogram</strong> (Hard) — <a href="https://leetcode.com/problems/largest-rectangle-in-histogram/">link</a></li>
+  <li><strong>Maximal Rectangle</strong> (Hard) — <a href="https://leetcode.com/problems/maximal-rectangle/">link</a></li>
+  <li><strong>Trapping Rain Water</strong> (Hard) — <a href="https://leetcode.com/problems/trapping-rain-water/">link</a></li>
+  <li><strong>Shortest Subarray with Sum at Least K</strong> (Hard) — <a href="https://leetcode.com/problems/shortest-subarray-with-sum-at-least-k/">link</a></li>
+</ol>
+
+<!-- COMPOSITION -->
+<h2>Composition — a Hard built from monotonic stack + earlier patterns</h2>
+<p><strong>Maximal Rectangle</strong> (Hard) — <a href="https://leetcode.com/problems/maximal-rectangle/">link</a>. Composes the monotonic-stack histogram solution with <strong>prefix-sum-style row accumulation</strong> (Lesson 4) and <strong>grid traversal</strong> (Lesson 9/29).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The problem:</strong> in a binary matrix, find the largest rectangle containing only 1s.</p>
+  <p><strong>Pattern A — turn each row into a histogram (prefix accumulation, Lesson 4):</strong> for each row, compute <code>heights[c]</code> = number of consecutive 1s ending at this row in column c. A 0 resets the height to 0; a 1 adds one to the height above. Sweeping rows top to bottom builds each histogram in O(cols) — a running accumulation just like prefix sums.</p>
+  <p><strong>Pattern B — largest rectangle in a histogram (this lesson's monotonic stack):</strong> for each row's histogram, run largest-rectangle-in-histogram in O(cols). The monotonic stack finds, for each bar, how far left and right it can extend before hitting a shorter bar — those are exactly the rectangle's boundaries.</p>
+  <p>The Hard = (accumulate rows into histograms) + (monotonic-stack histogram max) over every row. Total O(rows·cols). The histogram solver is this lesson; the row accumulation is prefix-sum thinking from Lesson 4.</p>
+</details>
+
+<h2>Your reps</h2>
+<ol>
+  <li>Solve Largest Rectangle in Histogram first in isolation; it's the engine for two other problems in the list.</li>
+  <li>Do Trapping Rain Water with a monotonic stack and compare it to the two-pointer version from Lesson 2 — same problem, two different pattern lenses.</li>
+</ol>
+
+<!-- REFERENCE -->
+<h2 id="refcard">Reference card — Monotonic Stack &amp; Queue</h2>
+<h3>When, and why</h3>
+<p>Use a monotonic stack when each element needs the nearest greater/smaller element on one side, or you measure spans/areas bounded by such elements. A new element permanently resolves and pops everyone it shadows, so each element is handled O(1) amortized → O(n). Use a monotonic deque for the max/min of a sliding window: it keeps window candidates sorted, evicting shadowed ones from the back and expired ones from the front.</p>
+<h3>The move</h3>
+<p>Scan once, maintaining a stack/deque of indices whose values are monotone. On each new element, pop everything it shadows (resolving those elements' answers), then push it. Flip the comparison for greater vs smaller; reverse the scan for previous vs next.</p>
+<h3>Template</h3>
+<pre><code>stack = []
+for i, x in enumerate(nums):
+    while stack and nums[stack[-1]] < x:   # x shadows the top
+        resolve(stack.pop(), i)
+    stack.append(i)</code></pre>
+<h3>Classic problems</h3>
+<p>Daily Temperatures (M), Next Greater Element II (M), Online Stock Span (M), Largest Rectangle in Histogram (H), Sliding Window Maximum (H), Maximal Rectangle (H), Sum of Subarray Minimums (M).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If you can't decide increasing vs decreasing stack, tell me whether you want the next <em>greater</em> or next <em>smaller</em> — the answer dictates the pop condition, and I'll walk you through why.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> <a href="https://neetcode.io/courses">neetcode.io/courses</a> (Stack section — Daily Temperatures and Largest Rectangle in Histogram are the canonical walkthroughs).
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 32: DP on Trees &amp; Bitmask</span>
+  <span>Next: Lesson 34 — Stack for Parsing &amp; Design →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

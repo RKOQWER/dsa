@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 19 — Trie Patterns (store shared prefixes once)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 3 · Recursion-driven patterns</p>
+<span class="lesson-no">Lesson 19 of the course</span>
+<h1>Trie Patterns — deriving the prefix tree from "why am I re-scanning shared prefixes?"</h1>
+
+<p>A trie (prefix tree) is the answer to one specific pain: you have many strings and keep asking prefix questions — "does any word start with <code>app</code>?", "insert <code>apple</code>", "is <code>app</code> itself a word?". By the end you'll derive the trie from the waste in the naive approach, and recognize the two tells that should make you reach for it: <strong>many strings</strong> plus <strong>prefix-shaped queries</strong>.</p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Warm-up — recall from earlier lessons (no peeking)</h2>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. From Lesson 5, what does a hashmap give you when you need to know if you've seen a key before?</div>
+  <button class="opt" data-correct="true" data-fb="Right — average O(1) membership and lookup; the seen-set/dictionary backbone of many patterns.">Average O(1) membership and lookup</button>
+  <button class="opt" data-correct="false" data-fb="Ordered iteration is a tree/sorted-structure property; a plain hashmap gives no order guarantee.">Sorted iteration over the keys</button>
+  <button class="opt" data-correct="false" data-fb="Range queries are a prefix-sum / BST strength, not what a hashmap is for.">Efficient range-sum queries</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. From Lesson 15, which XOR-max problem hinted that a bit-by-bit tree walk could help? (bit manipulation, Lesson 13)</div>
+  <button class="opt" data-correct="false" data-fb="Subsets is backtracking; it doesn't involve a bitwise greedy tree walk.">Generating all subsets</button>
+  <button class="opt" data-correct="true" data-fb="Yes — Maximum XOR of Two Numbers: walking bits most-significant-first to greedily chase the opposite bit is exactly a trie-on-bits idea.">Maximum XOR of Two Numbers in an Array</button>
+  <button class="opt" data-correct="false" data-fb="Valid Palindrome is a two-pointer string check, unrelated to bitwise tree walks.">Valid Palindrome</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving the trie from scratch</h2>
+
+<p>Suppose you're building an autocomplete over a dictionary of 100,000 words and must answer "how many stored words start with this prefix?" repeatedly.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Brute force:</strong> store the words in a list (or a hash set). For each prefix query, scan every word and test <code>word.startswith(prefix)</code> → O(number of words × prefix length) per query. With many queries, that's hopeless. Even a hash set only answers "is this exact word present"; it gives nothing for <em>prefixes</em>, because hashing deliberately scatters similar strings to unrelated buckets.</p>
+  <p><strong>Spot the waste:</strong> the words <code>apple</code>, <code>app</code>, <code>apply</code> all share the prefix <code>app</code>, yet the naive approach re-reads those three letters independently for every word and every query. The shared structure is being recomputed constantly.</p>
+  <p><strong>The insight (= the trie):</strong> store the <em>shared prefix once</em>. Build a tree where each edge is a character and each path from the root spells a prefix. <code>apple</code>, <code>app</code>, and <code>apply</code> share one <code>a → p → p</code> path, then branch. Now "words starting with <code>app</code>" is just "walk the three edges <code>a, p, p</code> and look at everything below" — the walk costs only the prefix length, independent of how many words are stored. A boolean <code>is_end</code> flag on a node marks that a word terminates exactly there (so <code>app</code> can be a stored word even though <code>apple</code> continues past it).</p>
+  <pre><code>class TrieNode:
+    def __init__(self):
+        self.children = {}      # char -> TrieNode
+        self.is_end = False     # a stored word ends here
+
+class Trie:
+    def __init__(self):
+        self.root = TrieNode()
+    def insert(self, word):
+        node = self.root
+        for ch in word:                     # walk/create one edge per char
+            node = node.children.setdefault(ch, TrieNode())
+        node.is_end = True
+    def _walk(self, s):                      # follow s; return end node or None
+        node = self.root
+        for ch in s:
+            if ch not in node.children: return None
+            node = node.children[ch]
+        return node
+    def search(self, word):                  # exact word present?
+        node = self._walk(word)
+        return node is not None and node.is_end
+    def startsWith(self, prefix):            # any word with this prefix?
+        return self._walk(prefix) is not None</code></pre>
+  <p>Every trie operation is this same walk: follow one edge per character. Insert creates missing edges; search/startsWith just follow existing ones. The whole data structure exists to make <em>prefixes</em> O(length-of-query) instead of O(number-of-words).</p>
+</div>
+
+<!-- ============ WHEN & WHY ============ -->
+<h2>When to reach for a trie, and why it works</h2>
+<p>Reach for a trie when <strong>both</strong> tells are present: you have a <em>collection of many strings</em> (a dictionary, a word list, a set of numbers viewed as bit-strings) and the queries are <em>prefix-shaped</em> — "starts with", autocomplete, "insert/search a word", "does any word match this pattern with wildcards", or "find the pair with maximum XOR" (where numbers become fixed-length bit strings and you greedily chase the opposite bit). The deciding signal is the word "prefix" or repeated structural overlap among the strings. It works because storing shared prefixes once turns every query into a single root-to-node walk costing only the query's length, completely independent of how many strings are stored — the cost a hash set can never give you for prefixes, because hashing destroys the ordering and adjacency that prefixes rely on.</p>
+<p>Do <em>not</em> reach for a trie when you only ever test exact-match membership (a hash set is simpler and lighter) or when there are few strings (the naive scan is fine and the trie's pointer overhead isn't worth it). A trie trades memory for prefix speed; if you aren't asking prefix questions, you're paying that memory for nothing.</p>
+
+<div class="callout trap">
+  <span class="label">Trap — the is_end flag and the wildcard branch</span>
+  <p>Two things catch people. First, forgetting <code>is_end</code>: without it you can't distinguish a stored word from a mere prefix of a longer word, so <code>search("app")</code> wrongly returns true just because <code>apple</code> exists. Second, when a query allows a wildcard (<code>.</code> matching any character, as in "Add and Search Word"), a single downward walk is no longer enough — at a <code>.</code> you must branch into <em>all</em> children and recurse, turning the walk into a small DFS. Recognizing that a wildcard converts the linear walk into a branching search (recursion, Lesson 14) is the key to that problem.</p>
+</div>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — at least 10, easy → hard</h2>
+<p>Each is the same edge-walk with a twist. Solve them; ask me if you get stuck.</p>
+<ol>
+  <li><strong>Implement Trie (Prefix Tree)</strong> (Medium) — <a href="https://leetcode.com/problems/implement-trie-prefix-tree/">link</a></li>
+  <li><strong>Design Add and Search Words Data Structure</strong> (Medium — wildcard branch) — <a href="https://leetcode.com/problems/design-add-and-search-words-data-structure/">link</a></li>
+  <li><strong>Longest Common Prefix</strong> (Easy — trie is one way) — <a href="https://leetcode.com/problems/longest-common-prefix/">link</a></li>
+  <li><strong>Replace Words</strong> (Medium) — <a href="https://leetcode.com/problems/replace-words/">link</a></li>
+  <li><strong>Map Sum Pairs</strong> (Medium) — <a href="https://leetcode.com/problems/map-sum-pairs/">link</a></li>
+  <li><strong>Implement Magic Dictionary</strong> (Medium) — <a href="https://leetcode.com/problems/implement-magic-dictionary/">link</a></li>
+  <li><strong>Longest Word in Dictionary</strong> (Medium) — <a href="https://leetcode.com/problems/longest-word-in-dictionary/">link</a></li>
+  <li><strong>Search Suggestions System</strong> (Medium — autocomplete) — <a href="https://leetcode.com/problems/search-suggestions-system/">link</a></li>
+  <li><strong>Maximum XOR of Two Numbers in an Array</strong> (Medium — trie on bits) — <a href="https://leetcode.com/problems/maximum-xor-of-two-numbers-in-an-array/">link</a></li>
+  <li><strong>Word Search II</strong> (Hard) — <a href="https://leetcode.com/problems/word-search-ii/">link</a></li>
+  <li><strong>Concatenated Words</strong> (Hard) — <a href="https://leetcode.com/problems/concatenated-words/">link</a></li>
+  <li><strong>Palindrome Pairs</strong> (Hard) — <a href="https://leetcode.com/problems/palindrome-pairs/">link</a></li>
+</ol>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>Word Search II</strong> (Hard 212) — <a href="https://leetcode.com/problems/word-search-ii/">link</a> — composes a trie (this lesson) with <em>backtracking on a grid</em> (Lesson 15) and the <em>matrix-as-graph DFS</em> traversal (Lesson 9). Try it before opening the decomposition.</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p>Given a board of letters and a list of words, find every word that can be traced along adjacent cells. The naive approach — run Word Search (backtracking) once per word — repeats work badly when words share prefixes: you re-explore the same <code>a → p → p</code> board paths for <code>apple</code>, <code>app</code>, and <code>apply</code> separately.</p>
+  <p><strong>Piece A (trie, this lesson):</strong> build one trie of all target words. Now a single grid walk can check <em>all</em> words at once: as you step from cell to cell, you also step down the trie by that cell's letter. If a letter isn't a child of the current trie node, every remaining word down this board path is impossible — prune immediately. Shared prefixes are explored only once.</p>
+  <p><strong>Piece B (backtracking on a grid, Lesson 15):</strong> the board walk is the do/recurse/undo rhythm — mark a cell visited, recurse into its neighbours, then unmark on the way back. The trie node you're at travels alongside the recursion as extra state.</p>
+  <p><strong>Piece C (matrix traversal / 4-directional neighbours, Lesson 9):</strong> the "adjacent cells" movement is the standard up/down/left/right grid DFS from the matrix lesson, with bounds checks.</p>
+  <pre><code>def findWords(board, words):
+    root = {}                              # trie as nested dicts (this lesson)
+    for w in words:
+        node = root
+        for ch in w: node = node.setdefault(ch, {})
+        node['$'] = w                      # store the full word at its end
+    rows, cols, found = len(board), len(board[0]), set()
+    def dfs(r, c, node):                   # backtracking (Lesson 15)
+        ch = board[r][c]
+        if ch not in node: return
+        nxt = node[ch]
+        if '$' in nxt: found.add(nxt['$'])
+        board[r][c] = '#'                  # mark visited (do)
+        for dr, dc in ((1,0),(-1,0),(0,1),(0,-1)):   # 4-dir (Lesson 9)
+            nr, nc = r+dr, c+dc
+            if 0 <= nr < rows and 0 <= nc < cols and board[nr][nc] != '#':
+                dfs(nr, nc, nxt)
+        board[r][c] = ch                   # unmark (undo)
+    for r in range(rows):
+        for c in range(cols):
+            dfs(r, c, root)
+    return list(found)</code></pre>
+  <p>The Hard = (trie to check all words in one pass) + (grid backtracking) + (4-directional matrix traversal). Three patterns you already own, stacked. <strong>Name the pieces and the Hard stops being hard.</strong></p>
+</details>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If you can't tell whether a string problem wants a trie or just a hash set, give me its exact query shape — "exact match" says hash set, anything with "prefix / starts-with / shared structure" says trie, and I'll show you how to read that off the statement.
+</div>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Trie (Prefix Tree)</h2>
+<p>The compressed version. A 2-minute re-read should reload the whole pattern.</p>
+
+<h3>When to use it, and why</h3>
+<p>Use when you have many strings AND prefix-shaped queries: starts-with, autocomplete, insert/search a word, wildcard matching, or max-XOR (numbers as bit-strings). It works by storing each shared prefix once, so a query is a single root-to-node walk costing only the query length, independent of how many strings are stored — something a hash set cannot do for prefixes. Skip it for exact-match-only (use a set) or when there are few strings.</p>
+
+<h3>The structure and the one operation</h3>
+<p>Each node holds <code>children</code> (char → node) and an <code>is_end</code> flag. Every operation is the same walk: follow one edge per character. Insert creates missing edges and sets <code>is_end</code>; search follows edges and checks <code>is_end</code>; startsWith follows edges and checks you didn't fall off.</p>
+
+<h3>Template</h3>
+<pre><code>root = {}
+def insert(word):
+    node = root
+    for ch in word: node = node.setdefault(ch, {})
+    node['$'] = True                 # mark end
+def walk(s):
+    node = root
+    for ch in s:
+        if ch not in node: return None
+        node = node[ch]
+    return node
+# search: walk(word) and '$' in it ; startsWith: walk(prefix) is not None</code></pre>
+
+<h3>Two traps</h3>
+<p>Keep the <code>is_end</code>/<code>'$'</code> marker or you can't tell a word from a prefix. A wildcard query (<code>.</code>) turns the single walk into a branching DFS over all children at that node.</p>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> NeetCode's Trie videos (Implement Trie, Add and Search Word, Word Search II) — <a href="https://neetcode.io/courses">neetcode.io/courses</a> — build exactly this edge-walk and the grid composition.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 18: BST Patterns</span>
+  <span>Next: Lesson 20 — Graph Modeling →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 34 — Stack for Parsing &amp; Design</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 6 · Stack / Queue / Heap</p>
+<span class="lesson-no">Lesson 34 of the course</span>
+<h1>Stack for Parsing &amp; Design — "the most recent unfinished thing"</h1>
+
+<p>Beyond monotonic stacks, the plain stack is the tool whenever a problem has <em>nesting</em> — brackets inside brackets, calls inside calls, operators waiting on operands. A stack holds "the most recently opened thing still waiting to be closed," which is exactly the structure of balanced parentheses, expression evaluation, and several system-design problems like min-stack and LRU cache.</p>
+
+<!-- SPACED RETRIEVAL -->
+<h2>Warm-up — recall (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. A monotonic stack (Lesson 33) stayed sorted by popping shadowed elements. What invariant does a <em>parsing</em> stack maintain instead?</div>
+  <button class="opt" data-correct="true" data-fb="Right — LIFO nesting: the top is always the most recently opened, not-yet-closed context. No sortedness; just last-in-first-out matching.">The top is the most recently opened, still-unclosed context (LIFO nesting)</button>
+  <button class="opt" data-correct="false" data-fb="A parsing stack is not kept sorted; that's the monotonic variant.">Its values stay sorted</button>
+  <button class="opt" data-correct="false" data-fb="Parsing stacks don't inherently track min; that's a specific design problem (min-stack).">It always tracks the minimum</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. For LRU cache you need O(1) lookup AND O(1) recency updates. From earlier lessons, which structure gives O(1) keyed lookup?</div>
+  <button class="opt" data-correct="true" data-fb="Right — a hashmap (Lesson 5). LRU pairs it with a doubly linked list (Lesson 8) for O(1) recency reordering.">A hashmap</button>
+  <button class="opt" data-correct="false" data-fb="A sorted array gives O(log n) search, not O(1), and O(n) updates.">A sorted array</button>
+  <button class="opt" data-correct="false" data-fb="A plain stack doesn't give O(1) keyed lookup by arbitrary key.">A stack</button>
+</div>
+
+<!-- DERIVATION -->
+<h2>Deriving the parsing stack</h2>
+<p>Take <strong>Valid Parentheses</strong>: given a string of <code>()[]{}</code>, decide if every bracket is correctly matched and nested.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>What makes nesting hard?</strong> A closing bracket must match the <em>most recently opened</em> bracket that is still open — not any earlier one. So as you scan, you need instant access to "the latest unclosed opener," and when it's closed, the <em>next</em> latest becomes current again. That "latest first, and reveal the previous one when removed" behavior is the definition of a stack (LIFO).</p>
+  <ul>
+    <li>See an opener → push it; it is now the most recent unclosed context.</li>
+    <li>See a closer → it must match the top of the stack. If it does, pop (that context is finished, revealing the previous one). If it doesn't, the string is invalid.</li>
+    <li>At the end, a valid string leaves the stack empty — nothing unclosed.</li>
+  </ul>
+  <pre><code>def isValid(s):
+    pairs = {')':'(', ']':'[', '}':'{'}
+    stack = []
+    for ch in s:
+        if ch in '([{':
+            stack.append(ch)
+        else:
+            if not stack or stack.pop() != pairs[ch]:
+                return False
+    return not stack</code></pre>
+  <p>You didn't memorize "use a stack for brackets." You observed that matching needs the <em>most recent</em> unclosed thing, and LIFO is the one structure that gives it. That reasoning generalizes to every nesting problem.</p>
+</div>
+
+<p><strong>The transferable shape:</strong> reach for a stack whenever the problem has nested or deferred structure — things that open and must later close in reverse order, or computations that must wait for their operands. Expression evaluation pushes operands and applies an operator when its inputs are ready. Decoding nested strings (<code>3[a2[c]]</code>) pushes the outer context when a new bracket opens and restores it when the bracket closes. For <strong>design problems</strong>, the move is to pick the data structures whose operations match the required complexity: min-stack pairs each value with the running minimum so <code>getMin</code> is O(1); LRU cache combines a hashmap (O(1) lookup, Lesson 5) with a doubly linked list (O(1) reordering, Lesson 8).</p>
+
+<!-- WHEN / WHY -->
+<h2>When to reach for a stack (or a designed structure), and why</h2>
+<ul>
+  <li><strong>The input has nesting or must be closed in reverse order of opening (brackets, tags, nested encodings).</strong> A closer always refers to the most recently opened context, and LIFO is precisely the structure that keeps the most recent item accessible and reveals the previous one on removal — so a single scan validates or builds the structure in O(n).</li>
+  <li><strong>A computation must wait for parts that come later (operator waiting for operands, deferred evaluation).</strong> The stack holds the deferred items until their dependencies arrive, then resolves them top-down — the natural order for nested expressions.</li>
+  <li><strong>A design problem demands specific O(1) operations (min-stack's getMin, LRU's get/put).</strong> You don't derive a clever trick; you <em>compose</em> structures whose individual guarantees meet the spec — augment a stack with a running aggregate, or pair a hashmap with a linked list. The skill is reading the required complexities and choosing structures that already provide them.</li>
+</ul>
+
+<!-- TEMPLATE -->
+<h2>The templates</h2>
+<pre><code># Min-stack: store (value, running_min) so getMin is O(1)
+class MinStack:
+    def __init__(self): self.st = []
+    def push(self, x):
+        m = x if not self.st else min(x, self.st[-1][1])
+        self.st.append((x, m))
+    def pop(self): self.st.pop()
+    def top(self): return self.st[-1][0]
+    def getMin(self): return self.st[-1][1]
+
+# LRU cache: hashmap (key -> node) + doubly linked list (recency order)
+from collections import OrderedDict
+class LRUCache:
+    def __init__(self, cap):
+        self.cap = cap
+        self.d = OrderedDict()           # front = least recent
+    def get(self, key):
+        if key not in self.d: return -1
+        self.d.move_to_end(key)          # mark most recent
+        return self.d[key]
+    def put(self, key, val):
+        if key in self.d: self.d.move_to_end(key)
+        self.d[key] = val
+        if len(self.d) > self.cap:
+            self.d.popitem(last=False)   # evict least recent
+</code></pre>
+
+<!-- PRACTICE -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only. For each parsing problem, name what gets pushed and when it's popped; for design problems, name the two structures you compose.</p>
+<ol>
+  <li><strong>Valid Parentheses</strong> (Easy) — <a href="https://leetcode.com/problems/valid-parentheses/">link</a></li>
+  <li><strong>Min Stack</strong> (Medium) — <a href="https://leetcode.com/problems/min-stack/">link</a></li>
+  <li><strong>Evaluate Reverse Polish Notation</strong> (Medium) — <a href="https://leetcode.com/problems/evaluate-reverse-polish-notation/">link</a></li>
+  <li><strong>Decode String</strong> (Medium) — <a href="https://leetcode.com/problems/decode-string/">link</a></li>
+  <li><strong>Asteroid Collision</strong> (Medium) — <a href="https://leetcode.com/problems/asteroid-collision/">link</a></li>
+  <li><strong>Simplify Path</strong> (Medium) — <a href="https://leetcode.com/problems/simplify-path/">link</a></li>
+  <li><strong>Remove All Adjacent Duplicates in String II</strong> (Medium) — <a href="https://leetcode.com/problems/remove-all-adjacent-duplicates-in-string-ii/">link</a></li>
+  <li><strong>Implement Queue using Stacks</strong> (Easy) — <a href="https://leetcode.com/problems/implement-queue-using-stacks/">link</a></li>
+  <li><strong>LRU Cache</strong> (Medium) — <a href="https://leetcode.com/problems/lru-cache/">link</a></li>
+  <li><strong>Basic Calculator II</strong> (Medium) — <a href="https://leetcode.com/problems/basic-calculator-ii/">link</a></li>
+  <li><strong>Basic Calculator</strong> (Hard) — <a href="https://leetcode.com/problems/basic-calculator/">link</a></li>
+  <li><strong>Longest Valid Parentheses</strong> (Hard) — <a href="https://leetcode.com/problems/longest-valid-parentheses/">link</a></li>
+</ol>
+
+<!-- COMPOSITION -->
+<h2>Composition — a Hard built from a parsing stack + earlier patterns</h2>
+<p><strong>Basic Calculator</strong> (Hard) — <a href="https://leetcode.com/problems/basic-calculator/">link</a>. Composes a parsing stack with <strong>careful sign/state handling</strong> and the nesting idea applied to parentheses that flip signs.</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The problem:</strong> evaluate an expression with <code>+</code>, <code>-</code>, non-negative integers, and parentheses (which can nest and carry a leading sign).</p>
+  <p><strong>Pattern A — parsing stack for nesting:</strong> a parenthesis opens a new evaluation context whose running result and current sign must be remembered and restored when the matching <code>)</code> closes. Push the current (result, sign) when you hit <code>(</code>, reset to a fresh context, and on <code>)</code> fold the inner result back into the saved outer one. This is exactly "remember the most recent unclosed context" from this lesson.</p>
+  <p><strong>Pattern B — running accumulation of signed terms:</strong> between parentheses, keep a running <code>result</code> and a <code>sign</code> (+1 or -1) that applies to the next number — a tiny state machine. Multi-digit numbers are accumulated digit by digit, like a scan.</p>
+  <p>The Hard = (parsing stack to save/restore contexts across parentheses) + (a sign+result accumulator between brackets). The stack mechanics are this lesson; the only subtlety is remembering to push <em>both</em> the result and the sign when a parenthesis opens.</p>
+</details>
+
+<h2>Your reps</h2>
+<ol>
+  <li>Do Decode String and Basic Calculator back to back — both push an outer context on <code>[</code> or <code>(</code> and restore it on the close. Seeing the shared skeleton is the win.</li>
+  <li>Implement Min Stack two ways (paired-min vs a second stack) and confirm both give O(1) getMin.</li>
+</ol>
+
+<!-- REFERENCE -->
+<h2 id="refcard">Reference card — Stack for Parsing &amp; Design</h2>
+<h3>When, and why</h3>
+<p>Use a plain stack when the input nests or must close in reverse order of opening, or when a computation must wait for later operands — LIFO keeps the most recent unclosed context accessible and reveals the previous one on pop, so one scan handles arbitrary nesting in O(n). For design problems, compose structures whose individual operations meet the required complexities (augmented stack for min; hashmap + doubly linked list for LRU).</p>
+<h3>The move</h3>
+<p>Push when a context opens or an operand/deferred item appears; pop to match a closer or to apply an operator whose inputs are ready; a valid nesting ends with an empty stack. For design, read the spec's required O(1)/O(log n) operations and pick structures that already provide them.</p>
+<h3>Template</h3>
+<pre><code>stack = []
+for token in input:
+    if opens(token): stack.append(context(token))
+    elif closes(token): fold(stack.pop(), token)   # must match
+    else: handle(token)   # operand / digit / etc.</code></pre>
+<h3>Classic problems</h3>
+<p>Valid Parentheses (E), Decode String (M), Evaluate RPN (M), Min Stack (M), LRU Cache (M), Basic Calculator (H), Longest Valid Parentheses (H).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If a calculator or decode problem is dropping a sign or a context, tell me exactly what you push on <code>(</code> — forgetting to save part of the outer state is the classic bug, and we'll pin it fast.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> <a href="https://neetcode.io/courses">neetcode.io/courses</a> (Stack section) for parsing; for LRU, read Python's <code>OrderedDict</code> docs or implement the hashmap + doubly-linked-list version once by hand.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 33: Monotonic Stack &amp; Queue</span>
+  <span>Next: Lesson 35 — Heap patterns →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

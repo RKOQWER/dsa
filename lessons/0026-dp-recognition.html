@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 26 — DP Recognition (the recipe)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 5 · Dynamic Programming</p>
+<span class="lesson-no">Lesson 26 of the course</span>
+<h1>DP Recognition — the recipe that turns exponential recursion into a table</h1>
+
+<p>Dynamic programming is the single biggest interview filter, and it is where most people freeze. The cure is to stop thinking of DP as a bag of tricks and start treating it as one mechanical recipe: <em>find the choice, write the recurrence, notice the repeats, cache them.</em> By the end of this lesson you will be able to look at a problem and <em>derive</em> whether DP applies — not recall whether you've seen it.</p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Warm-up — recall from earlier lessons (no peeking)</h2>
+<p>Reload the old before stacking on the new.</p>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. Backtracking (Lesson 15) explores a decision tree and undoes each choice. What makes a problem backtracking rather than DP?</div>
+  <button class="opt" data-correct="true" data-fb="Right. Backtracking enumerates ALL valid configurations (every subset/permutation); DP reuses overlapping subproblems to compute ONE optimal value or a count. If subproblems repeat and you only need a best/count, it's DP.">You need all configurations, and subproblems don't usefully repeat</button>
+  <button class="opt" data-correct="false" data-fb="Input size alone doesn't decide it — some DP runs on large n, some backtracking on tiny n.">The input is large</button>
+  <button class="opt" data-correct="false" data-fb="Recursion appears in both — that's not the distinguishing feature.">It uses recursion</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. In binary search on the answer (Lesson 10), what property let you search the answer space?</div>
+  <button class="opt" data-correct="false" data-fb="Sortedness of the input array is for classic binary search, not search-on-answer.">The input array was sorted</button>
+  <button class="opt" data-correct="true" data-fb="Yes — monotone feasibility. Keep that word; DP is a different tool for when the answer is built from overlapping sub-decisions, not a monotone yes/no.">Feasibility was monotone in the answer value</button>
+  <button class="opt" data-correct="false" data-fb="Hashing is unrelated to why binary-search-on-answer works.">You hashed the candidates</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving DP from a brute-force recursion</h2>
+
+<p>Take the cleanest possible case: <strong>Fibonacci</strong>. <code>fib(n) = fib(n-1) + fib(n-2)</code>. Write the obvious recursion and watch what goes wrong.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Brute force:</strong></p>
+  <pre><code>def fib(n):
+    if n < 2: return n
+    return fib(n-1) + fib(n-2)</code></pre>
+  <p><strong>Spot the waste:</strong> draw the call tree for <code>fib(5)</code>. <code>fib(3)</code> is computed twice, <code>fib(2)</code> three times, <code>fib(1)</code> five times. The tree has roughly 2ⁿ nodes, but there are only <em>n distinct</em> subproblems: <code>fib(0)…fib(n)</code>. We are re-solving the same handful of subproblems an exponential number of times. <strong>That gap — few distinct subproblems, re-solved endlessly — is the entire signal for DP.</strong></p>
+  <p><strong>The insight (= the pattern):</strong> cache each subproblem's answer the first time you compute it, and return the cache on every later call. The call tree collapses to n unique computations.</p>
+  <pre><code>from functools import cache
+@cache
+def fib(n):
+    if n < 2: return n
+    return fib(n-1) + fib(n-2)   # now O(n)</code></pre>
+  <p>That's it. DP is nothing more than <em>recursion plus a memory of answers you've already computed.</em> Every DP you will ever write is this move applied to a harder recurrence.</p>
+</div>
+
+<h3>The two conditions, stated so you can test for them</h3>
+<p>A problem is DP exactly when both of these hold, and you can check them from the problem statement:</p>
+<ul>
+  <li><strong>Optimal substructure.</strong> The answer to the whole problem can be built from answers to strictly smaller versions of the same problem. Concretely: you can describe a <em>choice</em> at the current step such that, after making it, what remains is a smaller instance of the identical problem. If you cannot phrase "make one choice, then I face a smaller version of the same problem," it is not DP.</li>
+  <li><strong>Overlapping subproblems.</strong> Those smaller versions are reached again and again through different choice sequences. This is what makes caching pay off — if every subproblem were distinct, caching would save nothing and plain recursion or greedy would do.</li>
+</ul>
+
+<!-- ============ THE RECIPE ============ -->
+<h2>The recipe — the same five steps for every DP</h2>
+<p>Once you suspect DP, you never improvise. You run these five steps, in order, every time. They are written as actions you perform, not facts to memorize.</p>
+
+<ol>
+  <li><strong>Name the state.</strong> Decide what parameters fully describe a subproblem — the smallest set of values such that two calls with the same values must have the same answer. For Fibonacci it is just <code>n</code>. For a walk through an array it is usually "an index i, meaning the subproblem on the suffix starting at i." Getting the state right is 80% of the work; everything else follows.</li>
+  <li><strong>Write the recurrence by enumerating the choice.</strong> At the current state, list every move you could make. Each move consumes part of the problem and leaves a smaller state. The recurrence combines the results of those smaller states — a <code>max</code>/<code>min</code> for optimization, a <code>+</code> for counting, an <code>or</code> for feasibility.</li>
+  <li><strong>State the base cases.</strong> The smallest states whose answers are known without recursing — usually an empty suffix, index past the end, or n &lt; 2.</li>
+  <li><strong>Memoize (top-down).</strong> Wrap the recursion in a cache keyed by the state. This is already a correct, efficient DP; many interviews accept it as the final answer.</li>
+  <li><strong>Optionally convert to tabulation (bottom-up).</strong> Fill a table in an order where every state's dependencies are computed before it. This removes recursion overhead and often lets you shrink memory to O(1) by keeping only the last row/few values.</li>
+</ol>
+
+<h3>Memoization vs. tabulation — which, and why</h3>
+<p>These are two implementations of the identical recurrence, so pick by convenience, not correctness. <strong>Top-down memoization</strong> is easier to write because it follows the recurrence literally and only computes states you actually reach, which matters when the state space is large but sparsely used. <strong>Bottom-up tabulation</strong> is worth the extra thought when you want to drop the recursion stack (deep states can overflow it) or when you can see that each state only depends on the previous row, which lets you throw the rest of the table away and run in O(1) extra space.</p>
+
+<!-- ============ TEMPLATE ============ -->
+<h2>The template (reproduce from memory)</h2>
+<pre><code># TOP-DOWN: the shape of nearly every DP you'll write
+from functools import cache
+
+def solve(problem):
+    @cache
+    def dp(state):
+        if is_base(state):
+            return base_value(state)
+        best = NEUTRAL                      # 0 / -inf / +inf depending on combine
+        for choice in choices(state):
+            sub = dp(next_state(state, choice))
+            best = combine(best, value(choice) + sub)
+        return best
+    return dp(initial_state)
+
+# BOTTOM-UP: same recurrence, filled in dependency order
+def solve_table(n):
+    dp = [base for _ in range(n + 1)]
+    for i in range(first_unknown, n + 1):
+        dp[i] = combine_over_choices(dp, i)
+    return dp[n]
+</code></pre>
+<p>A compact reference is at the <a href="#refcard">bottom of this lesson</a>.</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only. Solve them yourself; ask me if you get stuck. For each, your first job is to <em>name the state</em> and <em>write the recurrence</em> before any code — that is the skill this lesson trains.</p>
+
+<ol>
+  <li><strong>Fibonacci Number</strong> (Easy) — <a href="https://leetcode.com/problems/fibonacci-number/">link</a></li>
+  <li><strong>N-th Tribonacci Number</strong> (Easy) — <a href="https://leetcode.com/problems/n-th-tribonacci-number/">link</a></li>
+  <li><strong>Climbing Stairs</strong> (Easy) — <a href="https://leetcode.com/problems/climbing-stairs/">link</a></li>
+  <li><strong>Min Cost Climbing Stairs</strong> (Easy) — <a href="https://leetcode.com/problems/min-cost-climbing-stairs/">link</a></li>
+  <li><strong>House Robber</strong> (Medium) — <a href="https://leetcode.com/problems/house-robber/">link</a></li>
+  <li><strong>Coin Change</strong> (Medium) — <a href="https://leetcode.com/problems/coin-change/">link</a></li>
+  <li><strong>Longest Increasing Subsequence</strong> (Medium) — <a href="https://leetcode.com/problems/longest-increasing-subsequence/">link</a></li>
+  <li><strong>Word Break</strong> (Medium) — <a href="https://leetcode.com/problems/word-break/">link</a></li>
+  <li><strong>Decode Ways</strong> (Medium) — <a href="https://leetcode.com/problems/decode-ways/">link</a></li>
+  <li><strong>Maximum Product Subarray</strong> (Medium) — <a href="https://leetcode.com/problems/maximum-product-subarray/">link</a></li>
+  <li><strong>Perfect Squares</strong> (Medium) — <a href="https://leetcode.com/problems/perfect-squares/">link</a></li>
+  <li><strong>Frog Jump</strong> (Hard) — <a href="https://leetcode.com/problems/frog-jump/">link</a></li>
+</ol>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — a Hard built from DP + an earlier pattern</h2>
+<p><strong>Russian Doll Envelopes</strong> (Hard) — <a href="https://leetcode.com/problems/russian-doll-envelopes/">link</a>. This composes DP (Longest Increasing Subsequence) with <strong>sorting as a tool</strong> (Lesson 11) and <strong>binary search</strong> (Lesson 10).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The problem:</strong> an envelope fits in another only if both width and height are strictly larger. Find the longest chain of nesting envelopes. Two dimensions must both increase.</p>
+  <p><strong>Pattern A — sorting as a tool (Lesson 11):</strong> sort by width ascending. Now one dimension is handled: any valid chain reads left-to-right in this order. But ties in width are a trap — two equal widths can't nest, so for equal widths sort <em>height descending</em>, which prevents the algorithm from ever picking two same-width envelopes in the same increasing run.</p>
+  <p><strong>Pattern B — reduce to a known 1-D problem:</strong> after sorting, the answer is the Longest Increasing Subsequence of the <em>heights</em> alone. The width constraint is already enforced by the sort order, so a classic LIS on heights solves it.</p>
+  <p><strong>Pattern C — binary search (Lesson 10) to make LIS fast:</strong> the O(n²) DP for LIS is too slow here; the O(n log n) LIS keeps a "tails" array and uses binary search to place each height. That is DP's recurrence accelerated by binary search over the tails.</p>
+  <p>The Hard = (sort to kill one dimension) + (LIS recurrence) + (binary search to speed LIS). Each piece you already own. Naming the three pieces is the whole battle.</p>
+</details>
+
+<h2>Your reps</h2>
+<ol>
+  <li>For every practice problem, write the <em>state</em> and the <em>recurrence</em> on paper before coding. If you can do that, the code is mechanical.</li>
+  <li>Take one problem you solved top-down and convert it to bottom-up, then shrink its memory. Doing this once makes the conversion permanent.</li>
+</ol>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — DP Recognition</h2>
+<p>Re-read this and the whole recipe should reload.</p>
+
+<h3>When it is DP, and why</h3>
+<ul>
+  <li><strong>Optimal substructure:</strong> you can phrase "make one choice now, then face a smaller version of the same problem." The whole answer is built from answers to smaller identical problems.</li>
+  <li><strong>Overlapping subproblems:</strong> those smaller problems recur through different choice paths, so caching each one turns exponential work into polynomial. If subproblems never repeat, it is not DP (it is greedy, divide-and-conquer, or plain recursion).</li>
+</ul>
+
+<h3>The recipe (same every time)</h3>
+<ol>
+  <li>Name the state — the minimal parameters that identify a subproblem.</li>
+  <li>Write the recurrence by enumerating the choice at the current state.</li>
+  <li>State base cases.</li>
+  <li>Memoize top-down (cache keyed by state).</li>
+  <li>Optionally tabulate bottom-up and shrink memory.</li>
+</ol>
+
+<h3>How to combine sub-answers</h3>
+<p>Use <code>max</code> or <code>min</code> for "best value" problems, <code>+</code> for "count the ways" problems, and <code>or</code> for "is it possible" problems. The combine operator is dictated by what the question asks for.</p>
+
+<h3>Template</h3>
+<pre><code>from functools import cache
+@cache
+def dp(state):
+    if base(state): return base_value
+    return combine(value(c) + dp(next(state, c)) for c in choices(state))</code></pre>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> The hardest part of DP is naming the state. If a problem won't yield, paste it and tell me the choice you think happens at each step — I'll help you turn that choice into a state and a recurrence.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> the clearest free treatment of the "recursion + memo, then tabulate" progression is Aditya Verma's DP playlist on YouTube; for the recipe framing, see <a href="https://neetcode.io/courses">neetcode.io/courses</a> (1-D DP section).
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 25: MST &amp; Advanced Graphs</span>
+  <span>Next: Lesson 27 — 1D DP →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

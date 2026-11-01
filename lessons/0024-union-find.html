@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 24 — Union-Find / DSU (connectivity, fast)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 4 · Graphs</p>
+<span class="lesson-no">Lesson 24 of the course</span>
+<h1>Union-Find — the data structure for "are these two connected?"</h1>
+
+<p>You can count connected components with DFS (Lesson 21). But when connections <em>arrive one at a time</em> and you must answer "are A and B connected yet?" after each — or you need to detect the exact edge that closes a cycle — repeatedly re-running DFS is wasteful. Union-Find (Disjoint Set Union) maintains connectivity incrementally in nearly constant time per operation. This lesson derives it from that exact waste.</p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Recall from earlier lessons (no peeking)</h2>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. To count connected components with traversal, you…</div>
+  <button class="opt" data-correct="true" data-fb="Yes — each unvisited node starts a new component and one traversal marks the whole group; fresh-start count = component count.">Loop all nodes; each unvisited one starts a new component and one traversal marks its group</button>
+  <button class="opt" data-correct="false" data-fb="Sorting edges by weight is for MST (next lesson), not component counting.">Sort the edges by weight first</button>
+  <button class="opt" data-correct="false" data-fb="A heap isn't needed to count components.">Use a min-heap of nodes</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. A topological sort reports "no valid order." What does that tell you about the directed graph?</div>
+  <button class="opt" data-correct="true" data-fb="Right — it has a cycle; fewer than V nodes could be emitted.">It contains a cycle</button>
+  <button class="opt" data-correct="false" data-fb="Disconnection doesn't block a topological order; a cycle does.">It is disconnected</button>
+  <button class="opt" data-correct="false" data-fb="Node count is irrelevant to whether an order exists.">It has too many nodes</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving Union-Find from the waste in repeated DFS</h2>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>The task:</strong> edges are given one at a time; after each edge you may be asked "are X and Y in the same connected group?"</p>
+  <p><strong>Brute force:</strong> after each query, run a BFS/DFS from X to see if you can reach Y. That's O(V + E) per query — and with many interleaved unions and queries it degrades to O(Q·(V+E)).</p>
+  <p><strong>Spot the waste:</strong> you keep rediscovering the group structure from scratch, even though adding one edge changes connectivity only slightly (it merges at most two groups). You should <em>maintain</em> the grouping, not recompute it.</p>
+  <p><strong>The insight (= Union-Find):</strong> give every group a single <em>representative</em> ("root"). Store a <code>parent</code> array where each element points toward its group's root. Then:</p>
+  <ul>
+    <li><strong>find(x)</strong> walks parent pointers up to the root — the root <em>is</em> the group's identity.</li>
+    <li>"Are X and Y connected?" becomes "do find(X) and find(Y) return the same root?"</li>
+    <li><strong>union(X, Y)</strong> merges two groups by pointing one root at the other — O(1) structural change.</li>
+  </ul>
+  <p><strong>Making it nearly O(1):</strong> two optimizations keep the trees flat. <em>Union by rank/size</em> always attaches the smaller tree under the larger root, so trees stay shallow. <em>Path compression</em> re-points every node visited during a <code>find</code> directly to the root, so future finds are instant. Together they give an amortized cost of α(n) per operation — the inverse Ackermann function, effectively a small constant. So the whole stream of unions and queries runs in almost linear total time.</p>
+</div>
+
+<h3>The deeper principle (so it transfers)</h3>
+<p>Reach for Union-Find instead of DFS whenever connectivity is <strong>dynamic</strong> (edges stream in and you must answer "connected?" along the way) or when the question is fundamentally <em>grouping</em>: how many groups, are these two in the same group, which edge first creates a group it shouldn't. DFS answers connectivity for a <em>fixed</em> graph in one shot; Union-Find answers it <em>incrementally and repeatedly</em>, and does it without ever building an explicit adjacency list — it only needs the pairs. The trigger phrase is "merge," "same group," "redundant connection," or "process edges and track components."</p>
+
+<!-- ============ WHEN TO USE ============ -->
+<h2>When to reach for Union-Find, and why</h2>
+
+<h3>Connectivity queries interleaved with edge additions</h3>
+<p>If the problem adds connections over time and asks connectivity questions between them, Union-Find maintains the answer in near-constant time per operation, whereas DFS would recompute everything each query. This "online connectivity" shape is the signature use.</p>
+
+<h3>Detecting the edge that creates a cycle in an undirected graph</h3>
+<p>While adding edges one by one, if both endpoints of the next edge already share a root, that edge connects two already-connected nodes — so it closes a cycle (it is redundant). This gives an elegant O(E·α) cycle detector and is exactly the "redundant connection" family.</p>
+
+<h3>Counting or merging groups, especially from pairs</h3>
+<p>When you're given relationships as pairs (accounts that belong to the same person, stones in the same row/column, equivalent variables) and asked how many distinct groups remain or whether two items are equivalent, Union-Find merges them directly without you ever constructing a graph to traverse.</p>
+
+<h3>As the engine of Kruskal's MST (next lesson)</h3>
+<p>Kruskal's builds a minimum spanning tree by adding the cheapest edges that don't form a cycle — and "doesn't form a cycle" is precisely a Union-Find check. So Union-Find is a prerequisite tool for the MST lesson that follows.</p>
+
+<!-- ============ TEMPLATE ============ -->
+<h2>The template (reproduce from memory)</h2>
+<pre><code>class DSU:
+    def __init__(self, n):
+        self.parent = list(range(n))   # each element is its own root initially
+        self.size = [1] * n            # size of the tree rooted at i
+        self.count = n                 # number of disjoint groups
+
+    def find(self, x):                 # with path compression
+        root = x
+        while self.parent[root] != root:
+            root = self.parent[root]
+        while self.parent[x] != root:  # re-point every node on the path to root
+            self.parent[x], x = root, self.parent[x]
+        return root
+
+    def union(self, a, b):             # union by size; returns False if already joined
+        ra, rb = self.find(a), self.find(b)
+        if ra == rb:
+            return False               # same group already -> this edge is redundant
+        if self.size[ra] < self.size[rb]:
+            ra, rb = rb, ra
+        self.parent[rb] = ra           # attach smaller tree under larger root
+        self.size[ra] += self.size[rb]
+        self.count -= 1                # two groups merged into one
+        return True
+
+    def connected(self, a, b):
+        return self.find(a) == self.find(b)
+</code></pre>
+<p>Compact reference at the <a href="#refcard">bottom</a>.</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — spot the "grouping / merge / connected?" signal</h2>
+<p>Problems only; ask me if you get stuck.</p>
+
+<ol>
+  <li><strong>Number of Provinces</strong> (Medium) — <a href="https://leetcode.com/problems/number-of-provinces/">link</a>. Count groups via unions.</li>
+  <li><strong>Redundant Connection</strong> (Medium) — <a href="https://leetcode.com/problems/redundant-connection/">link</a>. The edge that closes a cycle.</li>
+  <li><strong>Number of Operations to Make Network Connected</strong> (Medium) — <a href="https://leetcode.com/problems/number-of-operations-to-make-network-connected/">link</a>.</li>
+  <li><strong>Accounts Merge</strong> (Medium) — <a href="https://leetcode.com/problems/accounts-merge/">link</a>. Merge by shared emails.</li>
+  <li><strong>Most Stones Removed with Same Row or Column</strong> (Medium) — <a href="https://leetcode.com/problems/most-stones-removed-with-same-row-or-column/">link</a>.</li>
+  <li><strong>Satisfiability of Equality Equations</strong> (Medium) — <a href="https://leetcode.com/problems/satisfiability-of-equality-equations/">link</a>. Union the equals, then check the not-equals.</li>
+  <li><strong>Number of Islands II</strong> (Hard) — <a href="https://leetcode.com/problems/number-of-islands-ii/">link</a>. Islands appear one at a time — dynamic connectivity.</li>
+  <li><strong>Graph Valid Tree</strong> (Medium) — <a href="https://leetcode.com/problems/graph-valid-tree/">link</a>. A tree = connected + no cycle.</li>
+  <li><strong>Redundant Connection II</strong> (Hard) — <a href="https://leetcode.com/problems/redundant-connection-ii/">link</a>. Directed twist on cycle detection.</li>
+  <li><strong>Smallest String With Swaps</strong> (Medium) — <a href="https://leetcode.com/problems/smallest-string-with-swaps/">link</a>. Group swappable indices, then sort within groups.</li>
+  <li><strong>Number of Good Paths</strong> (Hard) — <a href="https://leetcode.com/problems/number-of-good-paths/">link</a>. Union in increasing value order.</li>
+  <li><strong>Making A Large Island</strong> (Hard) — <a href="https://leetcode.com/problems/making-a-large-island/">link</a>. Can be done with DSU sizes.</li>
+</ol>
+
+<!-- ============ COMPOSITION (hard) ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>Number of Good Paths</strong> (Hard 2421) composes <em>Union-Find</em> (this lesson) with <em>sorting as a tool</em> (Lesson 11) and <em>hashing</em> (Lesson 5).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The problem:</strong> a tree with a value on each node; count "good paths" — paths whose two endpoints have equal value and where no node on the path exceeds that value.</p>
+  <p><strong>Piece 1 — sorting as a tool (Lesson 11):</strong> process nodes in <em>increasing value</em> order. The key realisation: a good path's endpoints must be the maximum value on that path, so if you only ever union through nodes with value ≤ the current value, any two current-value nodes that become connected can see each other along a valid path.</p>
+  <p><strong>Piece 2 — Union-Find (this lesson):</strong> add each node by unioning it with already-processed neighbours (which, by the sort order, all have value ≤ this node's value). This incrementally grows connected regions "under a ceiling."</p>
+  <p><strong>Piece 3 — hashing (Lesson 5):</strong> within each component, keep a count (a dict root → {value → how many nodes of that value are endpoints-eligible}). When two same-valued nodes land in the same component, the number of new good paths is the product of their counts. Hashing tracks those per-component tallies.</p>
+  <p><strong>Why brute force is worse:</strong> checking every pair of equal-valued nodes and validating the path is O(N²) or worse; sort + union + per-component counting is about O(N log N · α).</p>
+  <pre><code># Sketch (not golfed): sort nodes by value, union with processed neighbours,
+# and for each value level, add product-of-counts of equal-valued nodes
+# that have merged into the same root.
+nodes = sorted(range(n), key=lambda x: vals[x])   # Piece 1
+dsu = DSU(n)
+# ... group nodes by value, union each with lower/equal neighbours (Piece 2),
+# ... maintain per-root Counter of values to add good paths (Piece 3)</code></pre>
+  <p>The Hard = (sort to impose a value ceiling) + (Union-Find to grow regions under that ceiling) + (hash counts per component to tally equal-value pairs).</p>
+</details>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> Torn between DFS and Union-Find for a connectivity problem? Tell me whether the edges arrive over time or all at once, and whether you must answer "connected?" repeatedly — that decides it.
+</div>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Union-Find (DSU)</h2>
+<p>The compressed version.</p>
+
+<h3>When and why</h3>
+<p>Use it for <strong>dynamic connectivity</strong> (edges stream in; answer "same group?" along the way), <strong>undirected cycle detection</strong> (an edge whose endpoints already share a root closes a cycle), and <strong>grouping from pairs</strong> (count groups / check equivalence without building a graph). It's also the engine of Kruskal's MST. DFS handles a fixed graph once; DSU handles it incrementally in near-constant time per op.</p>
+
+<h3>The idea</h3>
+<p>Each group has one root. <code>find(x)</code> walks to the root; two items are connected iff they share a root; <code>union</code> points one root at another. <strong>Union by size</strong> keeps trees shallow; <strong>path compression</strong> re-points visited nodes straight to the root. Together → amortized α(n) per operation (effectively constant).</p>
+
+<h3>Template (core ops)</h3>
+<pre><code>parent = list(range(n)); size = [1]*n
+def find(x):
+    while parent[x] != x:
+        parent[x] = parent[parent[x]]   # path halving
+        x = parent[x]
+    return x
+def union(a, b):
+    ra, rb = find(a), find(b)
+    if ra == rb: return False           # redundant edge / already connected
+    if size[ra] < size[rb]: ra, rb = rb, ra
+    parent[rb] = ra; size[ra] += size[rb]
+    return True</code></pre>
+
+<h3>Classic problems</h3>
+<p>Number of Provinces (M), Redundant Connection (M), Accounts Merge (M), Most Stones Removed (M), Graph Valid Tree (M), Number of Islands II (H), Number of Good Paths (H, composed with sorting + hashing), Smallest String With Swaps (M).</p>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> CP-Algorithms DSU, including the union-by-size + path-compression analysis — <a href="https://cp-algorithms.com/data_structures/disjoint_set_union.html">cp-algorithms.com/data_structures/disjoint_set_union</a>.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 23: Shortest Path</span>
+  <span>Next: Lesson 25 — MST &amp; Advanced →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 22 — Topological Sort (ordering under dependencies)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 4 · Graphs</p>
+<span class="lesson-no">Lesson 22 of the course</span>
+<h1>Topological Sort — ordering things that depend on each other</h1>
+
+<p>Whenever a problem says "you must do A before B," you have a directed graph and a question about order. This lesson derives both standard solutions (Kahn's queue of zero-dependency nodes, and the DFS post-order) from the same first principle, and shows the hidden bonus: a topological sort also tells you whether the dependency graph has a <strong>cycle</strong>, which is why so many "can you finish / is it possible" problems reduce to it.</p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Recall from earlier lessons (no peeking)</h2>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. What single piece of bookkeeping makes any graph traversal O(V + E)?</div>
+  <button class="opt" data-correct="true" data-fb="Yes — the visited set. Each node is processed once; each edge examined O(1) times.">A visited set</button>
+  <button class="opt" data-correct="false" data-fb="Sorting the nodes isn't needed and wouldn't bound the traversal.">Sorting the adjacency list</button>
+  <button class="opt" data-correct="false" data-fb="A matrix changes space, not the traversal's linear-in-(V+E) bound.">Using an adjacency matrix</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. A directed edge A → B in a dependency graph means…</div>
+  <button class="opt" data-correct="true" data-fb="Right — A must come before B (A is a prerequisite of B).">A must come before B</button>
+  <button class="opt" data-correct="false" data-fb="That would be the reverse edge; direction encodes the ordering.">B must come before A</button>
+  <button class="opt" data-correct="false" data-fb="Topological order is precisely about direction mattering, so undirected is wrong here.">The order doesn't matter</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving topological order from first principles</h2>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>The task:</strong> produce an order of all items such that every item appears after all of its prerequisites. (Think: courses with prerequisites, build targets, task scheduling.)</p>
+  <p><strong>Where can you even start?</strong> The only item you can safely place first is one with <em>no</em> unmet prerequisites — in graph terms, a node with <strong>in-degree 0</strong> (no incoming edges). If no such node exists, every node depends on something, which means there is a cycle and no valid order exists at all.</p>
+  <p><strong>The insight (= Kahn's algorithm):</strong> repeatedly take any in-degree-0 node, output it, and "remove" it — which decrements the in-degree of everything it pointed to. Removing it may create new in-degree-0 nodes (their last prerequisite is now satisfied), so keep a queue of currently-free nodes. You output nodes exactly in a valid order, and each edge is processed once when its source is removed → O(V + E).</p>
+  <p><strong>The cycle bonus:</strong> if you finish and have output fewer than V nodes, the leftover nodes form a cycle (they can never reach in-degree 0). So the same algorithm answers "is a valid ordering possible?" for free.</p>
+  <p><strong>The DFS view (same principle, different shape):</strong> if you run DFS and record each node <em>after</em> all its descendants are fully explored (post-order), then a node's prerequisites finish before it does. Reverse the finishing order and you get a topological order. Detecting a back-edge to a node currently on the recursion stack reveals a cycle.</p>
+</div>
+
+<h3>The deeper principle (so it transfers)</h3>
+<p>Topological sort is what you reach for when the problem is fundamentally about <strong>resolving things in dependency order</strong> — and the two implementations are just two ways to find "what can be done now." Kahn's peels off nodes whose dependencies are all met (think "ready queue"); DFS finishes a node only once its subtree of dependencies is done. Both are O(V + E), both detect cycles. Prefer Kahn's when you also want to <em>process</em> nodes level by level (for example, counting the number of dependency layers); prefer DFS when you already have a recursive structure or want the ordering as a by-product of exploration.</p>
+
+<!-- ============ WHEN TO USE ============ -->
+<h2>When to recognise a topological-sort problem</h2>
+
+<h3>The problem gives prerequisites or an ordering constraint</h3>
+<p>If items must be done, taken, built, or compiled in an order dictated by "X requires Y first," you are looking at a directed graph and the answer is some valid linear order of that graph. The moment you can phrase a rule as a directed edge "prerequisite → dependent," topological sort is the tool.</p>
+
+<h3>The problem asks "is it possible / can it be finished?"</h3>
+<p>Because a valid topological order exists if and only if the directed graph has no cycle, any question of the form "can all tasks be completed?" or "is this schedule consistent?" is really a cycle-detection question, and running a topological sort answers it: you succeed if and only if you can order every node.</p>
+
+<h3>The problem asks you to recover a hidden ordering from constraints</h3>
+<p>Sometimes the ordering is not given directly but implied by observations (for example, deducing an alphabet order from a sorted list of words). You extract the pairwise "comes before" constraints into directed edges, then topologically sort to recover a full order consistent with all of them.</p>
+
+<!-- ============ TEMPLATE ============ -->
+<h2>The template (reproduce from memory)</h2>
+<pre><code>from collections import deque, defaultdict
+
+# Kahn's algorithm (BFS style): returns a topo order, or [] if a cycle exists
+def topo_sort(n, edges):          # edges: list of (prereq, dependent)
+    adj = defaultdict(list)
+    indeg = [0] * n
+    for u, v in edges:            # u must come before v
+        adj[u].append(v)
+        indeg[v] += 1
+
+    q = deque(i for i in range(n) if indeg[i] == 0)
+    order = []
+    while q:
+        node = q.popleft()
+        order.append(node)
+        for nxt in adj[node]:
+            indeg[nxt] -= 1       # "remove" node: one prerequisite satisfied
+            if indeg[nxt] == 0:
+                q.append(nxt)
+    return order if len(order) == n else []   # [] means a cycle
+
+# DFS style (post-order, reversed); detects cycle via on-stack coloring
+def topo_sort_dfs(n, adj):
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color = [WHITE] * n
+    order = []
+    ok = True
+    def dfs(u):
+        nonlocal ok
+        color[u] = GRAY
+        for v in adj[u]:
+            if color[v] == GRAY:  ok = False      # back-edge -> cycle
+            elif color[v] == WHITE: dfs(v)
+        color[u] = BLACK
+        order.append(u)           # post-order
+    for u in range(n):
+        if color[u] == WHITE:
+            dfs(u)
+    return order[::-1] if ok else []
+</code></pre>
+<p>Compact reference at the <a href="#refcard">bottom</a>.</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — model the dependency edges first</h2>
+<p>Problems only; ask me if you get stuck.</p>
+
+<ol>
+  <li><strong>Course Schedule</strong> (Medium) — <a href="https://leetcode.com/problems/course-schedule/">link</a>. "Can you finish?" = cycle check.</li>
+  <li><strong>Course Schedule II</strong> (Medium) — <a href="https://leetcode.com/problems/course-schedule-ii/">link</a>. Return an actual order.</li>
+  <li><strong>Find Eventual Safe States</strong> (Medium) — <a href="https://leetcode.com/problems/find-eventual-safe-states/">link</a>.</li>
+  <li><strong>Minimum Height Trees</strong> (Medium) — <a href="https://leetcode.com/problems/minimum-height-trees/">link</a>. Peel leaves — a Kahn-style idea on an undirected tree.</li>
+  <li><strong>All Ancestors of a Node in a DAG</strong> (Medium) — <a href="https://leetcode.com/problems/all-ancestors-of-a-node-in-a-directed-acyclic-graph/">link</a>.</li>
+  <li><strong>Build a Matrix With Conditions</strong> (Hard) — <a href="https://leetcode.com/problems/build-a-matrix-with-conditions/">link</a>. Two independent topo sorts (rows and columns).</li>
+  <li><strong>Sequence Reconstruction</strong> (Medium) — <a href="https://leetcode.com/problems/sequence-reconstruction/">link</a>. Is the topo order unique?</li>
+  <li><strong>Parallel Courses</strong> (Medium) — <a href="https://leetcode.com/problems/parallel-courses/">link</a>. Count dependency layers with Kahn's.</li>
+  <li><strong>Course Schedule IV</strong> (Medium) — <a href="https://leetcode.com/problems/course-schedule-iv/">link</a>. Reachability queries on a DAG.</li>
+  <li><strong>Longest Increasing Path in a Matrix</strong> (Hard) — <a href="https://leetcode.com/problems/longest-increasing-path-in-a-matrix/">link</a>. The grid is a DAG; order it.</li>
+  <li><strong>Alien Dictionary</strong> (Hard) — <a href="https://leetcode.com/problems/alien-dictionary/">link</a>. Recover the alphabet order from sorted words.</li>
+  <li><strong>Sort Items by Groups Respecting Dependencies</strong> (Hard) — <a href="https://leetcode.com/problems/sort-items-by-groups-respecting-dependencies/">link</a>. Two-level topo sort.</li>
+</ol>
+
+<!-- ============ COMPOSITION (hard) ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>Alien Dictionary</strong> (Hard 269) composes <em>topological sort</em> (this lesson) with <em>graph modeling</em> (Lesson 20) and <em>hashing</em> (Lesson 5) to build the constraint edges.</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The problem:</strong> you're given words sorted in an unknown alphabet's order; recover a possible letter ordering (or report it's invalid).</p>
+  <p><strong>Piece 1 — graph modeling (Lesson 20):</strong> each distinct letter is a node. The <em>only</em> ordering information lives in adjacent word pairs: compare consecutive words character by character; the first position where they differ gives one directed edge "earlier letter → later letter." That single edge per adjacent pair is your entire edge set. (Watch the invalid case: if a longer word is a prefix of the earlier word, e.g. "abc" before "ab", no ordering is valid.)</p>
+  <p><strong>Piece 2 — hashing (Lesson 5):</strong> store the node set and adjacency in dicts/sets so you don't duplicate edges and can track in-degrees per letter.</p>
+  <p><strong>Piece 3 — topological sort (this lesson):</strong> run Kahn's over the letters. If you emit every letter, that's a valid alphabet; if a cycle blocks you, the input is inconsistent and you return "".</p>
+  <pre><code>from collections import defaultdict, deque
+
+def alienOrder(words):
+    adj = defaultdict(set)
+    indeg = {c: 0 for w in words for c in w}      # Piece 2: hashing nodes
+    for a, b in zip(words, words[1:]):            # Piece 1: build edges
+        for x, y in zip(a, b):
+            if x != y:
+                if y not in adj[x]:
+                    adj[x].add(y); indeg[y] += 1
+                break
+        else:
+            if len(a) > len(b):                   # invalid prefix case
+                return ""
+    q = deque([c for c in indeg if indeg[c] == 0])
+    out = []
+    while q:                                       # Piece 3: topo sort
+        c = q.popleft(); out.append(c)
+        for nxt in adj[c]:
+            indeg[nxt] -= 1
+            if indeg[nxt] == 0: q.append(nxt)
+    return "".join(out) if len(out) == len(indeg) else ""</code></pre>
+  <p>The Hard = (model letters-as-nodes, adjacent-word diffs as edges) + (hashing to dedupe edges and track in-degree) + (topological sort to linearise, with cycle = invalid).</p>
+</details>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If you can't tell whether a problem is "just traversal" or genuinely needs an <em>order</em>, describe the constraint to me and we'll check whether it's really a directed dependency edge.
+</div>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Topological Sort</h2>
+<p>The compressed version.</p>
+
+<h3>When and why</h3>
+<p>Use it when the problem is about <strong>ordering items under "X before Y" dependencies</strong>, or asks "is a consistent schedule possible?" A valid order exists iff the directed graph is acyclic, so topo sort doubles as cycle detection.</p>
+
+<h3>Two implementations, same principle</h3>
+<ul>
+  <li><strong>Kahn's (queue of in-degree-0 nodes).</strong> Repeatedly output a node with no unmet prerequisites and decrement its neighbours' in-degrees. If you output fewer than V nodes, there's a cycle. Natural when you also want to count dependency layers.</li>
+  <li><strong>DFS post-order.</strong> Record a node after its whole subtree finishes, then reverse. A back-edge to a node still on the recursion stack signals a cycle. Natural when a recursive structure already exists.</li>
+</ul>
+<p>Both are O(V + E).</p>
+
+<h3>Template (Kahn's)</h3>
+<pre><code>indeg[v] += 1 for each edge u->v; adj[u].append(v)
+q = deque(nodes with indeg 0)
+while q:
+    u = q.popleft(); order.append(u)
+    for v in adj[u]:
+        indeg[v] -= 1
+        if indeg[v] == 0: q.append(v)
+# cycle iff len(order) < V</code></pre>
+
+<h3>Classic problems</h3>
+<p>Course Schedule I/II (M), Parallel Courses (M), Minimum Height Trees (M), Alien Dictionary (H), Longest Increasing Path in a Matrix (H), Sort Items by Groups (H).</p>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> CP-Algorithms topological sorting — <a href="https://cp-algorithms.com/graph/topological-sort.html">cp-algorithms.com/graph/topological-sort</a>.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 21: Graph BFS &amp; DFS</span>
+  <span>Next: Lesson 23 — Shortest Path →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

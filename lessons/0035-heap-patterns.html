@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 35 — Heap Patterns</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 6 · Stack / Queue / Heap</p>
+<span class="lesson-no">Lesson 35 of the course</span>
+<h1>Heap Patterns — when you need the current best, repeatedly, without full sorting</h1>
+
+<p>A heap gives you the smallest (or largest) element in O(1) and lets you remove it or add a new element in O(log n). Reach for it whenever a problem repeatedly asks "what's the best remaining item right now?" — top-K, merge-K, streaming median, and greedy schedules that always grab the current extreme. The whole family is about avoiding a full sort you don't need.</p>
+
+<!-- SPACED RETRIEVAL -->
+<h2>Warm-up — recall (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. Quickselect (Lesson 12) also finds the k-th element. When is a heap the better choice than Quickselect?</div>
+  <button class="opt" data-correct="true" data-fb="Right — on a stream, or when elements arrive over time and you can't partition a fixed array. Quickselect needs the whole static array; a heap handles online data.">When data arrives as a stream, so you can't partition a fixed array</button>
+  <button class="opt" data-correct="false" data-fb="Quickselect is O(n) average, faster than a heap's O(n log k) for a one-shot static array.">When the array is static and you want the single k-th element fastest</button>
+  <button class="opt" data-correct="false" data-fb="Sortedness isn't what distinguishes them.">When the input is already sorted</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. A greedy approach (Lesson 11's sort-then-greedy) sometimes needs the current smallest among a changing set. Why a heap rather than re-sorting each step?</div>
+  <button class="opt" data-correct="true" data-fb="Right — the set changes every step; a heap updates in O(log n) per change, whereas re-sorting is O(n log n) every step.">The set changes each step; a heap updates in O(log n) instead of re-sorting</button>
+  <button class="opt" data-correct="false" data-fb="A heap doesn't keep everything fully sorted; it only exposes the extreme cheaply.">Because a heap keeps everything fully sorted at all times</button>
+  <button class="opt" data-correct="false" data-fb="Hashing doesn't give you the min/max.">Because hashing gives the min in O(1)</button>
+</div>
+
+<!-- DERIVATION -->
+<h2>Deriving the heap pattern via Top-K</h2>
+<p>Take <strong>K Largest Elements</strong>: return the k largest values from a list of n numbers (k ≪ n).</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Brute force:</strong> sort everything descending and take the first k → O(n log n). But you don't need the other n−k elements sorted at all; sorting them is wasted work.</p>
+  <p><strong>Spot the waste and what you actually need.</strong> You only ever need to know, at any moment, the <em>smallest of the k best seen so far</em> — because the next element matters only if it beats that smallest. So maintain a collection of size k that can, cheaply: (a) tell you its minimum, and (b) remove that minimum when a bigger element arrives.</p>
+  <p><strong>The insight (= the pattern):</strong> a <strong>min-heap of size k</strong> does exactly that. Push elements; whenever the heap exceeds size k, pop the smallest. What remains is always the k largest, and the heap's top is the k-th largest. Each push/pop is O(log k), so total O(n log k) — better than O(n log n), and it works even if the elements stream in one at a time.</p>
+  <pre><code>import heapq
+def k_largest(nums, k):
+    h = []                       # min-heap of the k best so far
+    for x in nums:
+        heapq.heappush(h, x)
+        if len(h) > k:
+            heapq.heappop(h)     # drop the smallest; keep top k
+    return h                     # h[0] is the k-th largest
+</code></pre>
+  <p>You derived "use a heap" not by recalling it, but by asking "what is the minimum information I must maintain?" — the answer was "the current smallest of the best k," and a heap is the structure that serves that in O(log k).</p>
+</div>
+
+<p><strong>The transferable shape:</strong> reach for a heap whenever you repeatedly need the current minimum or maximum of a <em>changing</em> set. The variations are about <em>what</em> you put in the heap: for <strong>merge-K sorted lists</strong>, the heap holds the current front of each list, so the global smallest is always on top; for the <strong>streaming median</strong>, you balance <em>two</em> heaps (a max-heap of the lower half and a min-heap of the upper half) so the median is always at one of the two tops; for <strong>greedy scheduling</strong>, the heap holds the tasks/intervals and you always pop the one with the earliest finish or highest priority. To get a max-heap in Python (which only has a min-heap), push negated values.</p>
+
+<!-- WHEN / WHY -->
+<h2>When to reach for a heap, and why</h2>
+<ul>
+  <li><strong>You repeatedly need the best (min or max) of a set that keeps changing (top-K, k-th largest in a stream, "schedule the next task").</strong> A full sort is O(n log n) and becomes stale the moment the set changes; a heap exposes the current extreme in O(1) and absorbs an insertion or extreme-removal in O(log n), so repeated queries stay cheap.</li>
+  <li><strong>You must merge several sorted sequences, or always consume the globally smallest among several fronts (merge-K lists, smallest range covering K lists).</strong> Putting one representative per sequence in the heap makes "which sequence has the smallest next element" an O(log k) question instead of scanning all k sequences each step.</li>
+  <li><strong>You need a running statistic that depends on the extremes of two halves of the data (median of a stream).</strong> Two heaps facing each other keep the halves balanced so the middle value(s) sit at the heap tops, updatable in O(log n) per new element — impossible to keep re-sorting on a stream.</li>
+</ul>
+
+<!-- TEMPLATE -->
+<h2>The templates</h2>
+<pre><code>import heapq
+
+# Merge K sorted lists: heap holds (value, list_index, node/pointer)
+def merge_k(lists):
+    h = [(l[0], i, 0) for i, l in enumerate(lists) if l]
+    heapq.heapify(h)
+    out = []
+    while h:
+        val, i, j = heapq.heappop(h)
+        out.append(val)
+        if j + 1 < len(lists[i]):
+            heapq.heappush(h, (lists[i][j+1], i, j+1))
+    return out
+
+# Streaming median: max-heap (lower half, negated) + min-heap (upper half)
+class MedianFinder:
+    def __init__(self):
+        self.lo = []   # max-heap via negation
+        self.hi = []   # min-heap
+    def addNum(self, x):
+        heapq.heappush(self.lo, -x)
+        heapq.heappush(self.hi, -heapq.heappop(self.lo))   # balance values
+        if len(self.hi) > len(self.lo):                    # balance sizes
+            heapq.heappush(self.lo, -heapq.heappop(self.hi))
+    def findMedian(self):
+        if len(self.lo) > len(self.hi): return -self.lo[0]
+        return (-self.lo[0] + self.hi[0]) / 2
+</code></pre>
+
+<!-- PRACTICE -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only. For each, decide what one item the heap should hold and whether it's a min- or max-heap.</p>
+<ol>
+  <li><strong>Kth Largest Element in a Stream</strong> (Easy) — <a href="https://leetcode.com/problems/kth-largest-element-in-a-stream/">link</a></li>
+  <li><strong>Last Stone Weight</strong> (Easy) — <a href="https://leetcode.com/problems/last-stone-weight/">link</a></li>
+  <li><strong>Kth Largest Element in an Array</strong> (Medium) — <a href="https://leetcode.com/problems/kth-largest-element-in-an-array/">link</a></li>
+  <li><strong>Top K Frequent Elements</strong> (Medium) — <a href="https://leetcode.com/problems/top-k-frequent-elements/">link</a></li>
+  <li><strong>K Closest Points to Origin</strong> (Medium) — <a href="https://leetcode.com/problems/k-closest-points-to-origin/">link</a></li>
+  <li><strong>Task Scheduler</strong> (Medium) — <a href="https://leetcode.com/problems/task-scheduler/">link</a></li>
+  <li><strong>Reorganize String</strong> (Medium) — <a href="https://leetcode.com/problems/reorganize-string/">link</a></li>
+  <li><strong>Find K Pairs with Smallest Sums</strong> (Medium) — <a href="https://leetcode.com/problems/find-k-pairs-with-smallest-sums/">link</a></li>
+  <li><strong>Meeting Rooms II</strong> (Medium) — <a href="https://leetcode.com/problems/meeting-rooms-ii/">link</a></li>
+  <li><strong>Merge k Sorted Lists</strong> (Hard) — <a href="https://leetcode.com/problems/merge-k-sorted-lists/">link</a></li>
+  <li><strong>Find Median from Data Stream</strong> (Hard) — <a href="https://leetcode.com/problems/find-median-from-data-stream/">link</a></li>
+  <li><strong>Sliding Window Median</strong> (Hard) — <a href="https://leetcode.com/problems/sliding-window-median/">link</a></li>
+</ol>
+
+<!-- COMPOSITION -->
+<h2>Composition — a Hard built from a heap + earlier patterns</h2>
+<p><strong>Smallest Range Covering Elements from K Lists</strong> (Hard) — <a href="https://leetcode.com/problems/smallest-range-covering-elements-from-k-lists/">link</a>. Composes a heap with the <strong>merge-K front-pointer idea</strong> and the <strong>sliding-window</strong> "shrink while valid" logic (Lesson 3).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The problem:</strong> given k sorted lists, find the smallest range [a, b] that includes at least one number from each list.</p>
+  <p><strong>Pattern A — heap of current fronts (this lesson, merge-K flavor):</strong> keep one pointer per list and push each list's current front into a min-heap, also tracking the current maximum among the fronts. The heap's top is the current minimum front. The range right now is [min_front, current_max], and it already covers one element from every list (one per pointer).</p>
+  <p><strong>Pattern B — advance the minimum, like a sliding window shrink (Lesson 3):</strong> to try to tighten the range, you must raise the minimum — so pop the smallest front and advance <em>that</em> list's pointer, pushing its next value and updating the max. This is the window-shrink move: you always discard the limiting (smallest) side to look for a tighter covering range, stopping when any list is exhausted.</p>
+  <p>The Hard = (heap to find and advance the current minimum front across k lists) + (sliding-window reasoning to shrink toward the smallest covering range). The heap is this lesson; the shrink-the-limiting-side instinct is Lesson 3.</p>
+</details>
+
+<h2>Your reps</h2>
+<ol>
+  <li>Solve Kth Largest in an Array with both Quickselect (Lesson 12) and a size-k heap, and articulate which you'd choose for a static array vs a stream.</li>
+  <li>Implement Find Median from Data Stream and trace the two-heap balancing on five inserts by hand.</li>
+</ol>
+
+<!-- REFERENCE -->
+<h2 id="refcard">Reference card — Heap Patterns</h2>
+<h3>When, and why</h3>
+<p>Use a heap when you repeatedly need the current min/max of a changing set. It exposes the extreme in O(1) and absorbs an insert or extreme-removal in O(log n), so repeated "best right now" queries stay cheap and work on streaming data where a full sort can't. Top-K keeps a size-k heap; merge-K keeps one front per list; streaming median balances two heaps; greedy scheduling pops the current best task.</p>
+<h3>The move</h3>
+<p>Decide the single item the heap holds and whether you want min or max (negate values for a max-heap in Python). Push as data arrives; pop the extreme when the size rule or greedy rule says so. The heap top is your answer at each step.</p>
+<h3>Template</h3>
+<pre><code>import heapq
+h = []
+for x in stream:
+    heapq.heappush(h, key(x))
+    if size_rule_violated(h): heapq.heappop(h)
+# h[0] is the current extreme / answer</code></pre>
+<h3>Classic problems</h3>
+<p>Kth Largest in a Stream (E), Top K Frequent (M), K Closest Points (M), Task Scheduler (M), Meeting Rooms II (M), Merge k Sorted Lists (H), Find Median from Data Stream (H).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If you can't decide min-heap vs max-heap, tell me whether you're trying to keep the k <em>largest</em> or k <em>smallest</em> — the heap type is the opposite of what people first guess, and I'll show you why.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> <a href="https://neetcode.io/courses">neetcode.io/courses</a> (Heap / Priority Queue section). For the two-heap median, read the balancing invariant carefully.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 34: Stack for Parsing &amp; Design</span>
+  <span>Lesson 36: Meet in the Middle →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

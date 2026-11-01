@@ -1,0 +1,179 @@
+/* ============================================================
+   DSA Pattern Course — shared lesson stylesheet
+   Tufte-inspired: readable, calm, print-friendly.
+   Linked by every lesson so the course feels like one book.
+   ============================================================ */
+
+:root {
+  --ink:        #1a1a1a;
+  --ink-soft:   #46443f;
+  --paper:      #fdfcf8;
+  --rule:       #d8d4c8;
+  --accent:     #7a1f1f;      /* deep crimson for headings/links */
+  --accent-2:   #1f4e5f;      /* teal for secondary emphasis */
+  --code-bg:    #f4f1e8;
+  --win-bg:     #eef5ec;      /* "tangible win" callout */
+  --win-brd:    #8bbf8a;
+  --warn-bg:    #fbf0e6;      /* trap / warning callout */
+  --warn-brd:   #d8a05a;
+  --derive-bg:  #eef1f6;      /* first-principles derivation block */
+  --derive-brd: #6a7fa8;
+  --maxw:       720px;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0 auto;
+  max-width: var(--maxw);
+  padding: 3.5rem 1.5rem 6rem;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: Charter, "Iowan Old Style", Georgia, "Times New Roman", serif;
+  font-size: 1.12rem;
+  line-height: 1.6;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---- Course chrome ---- */
+.course-tag {
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 0.3rem;
+}
+.lesson-no {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+}
+
+/* ---- Headings ---- */
+h1, h2, h3 { font-weight: 600; line-height: 1.2; color: var(--ink); }
+h1 { font-size: 2rem; margin: 0.2rem 0 1.4rem; }
+h2 {
+  font-size: 1.35rem; margin: 2.6rem 0 0.8rem;
+  padding-bottom: 0.3rem; border-bottom: 1px solid var(--rule);
+}
+h3 { font-size: 1.08rem; margin: 1.8rem 0 0.5rem; color: var(--accent-2); }
+
+a { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(122,31,31,0.3); }
+a:hover { border-bottom-color: var(--accent); }
+
+p { margin: 0.8rem 0; }
+strong { font-weight: 650; }
+em { color: var(--ink-soft); }
+
+ul, ol { padding-left: 1.4rem; }
+li { margin: 0.35rem 0; }
+
+/* ---- Code ---- */
+code {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 0.86em;
+  background: var(--code-bg);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---- Callouts ---- */
+.callout {
+  border-left: 4px solid var(--rule);
+  border-radius: 0 6px 6px 0;
+  padding: 0.9rem 1.1rem;
+  margin: 1.4rem 0;
+  font-size: 0.98rem;
+}
+.callout .label {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase;
+  font-weight: 700; display: block; margin-bottom: 0.4rem;
+}
+.derive { background: var(--derive-bg); border-left-color: var(--derive-brd); }
+.derive .label { color: var(--derive-brd); }
+.win    { background: var(--win-bg);  border-left-color: var(--win-brd); }
+.win .label { color: #2f7d2f; }
+.trap   { background: var(--warn-bg); border-left-color: var(--warn-brd); }
+.trap .label { color: #b06a1a; }
+
+/* ---- Signal→Pattern table ---- */
+table { border-collapse: collapse; width: 100%; margin: 1.2rem 0; font-size: 0.92rem; }
+th, td { text-align: left; padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); }
+tr:last-child td { border-bottom: none; }
+
+/* ---- Interactive quiz / reveal widgets ---- */
+.probe {
+  border: 1px solid var(--rule); border-radius: 8px;
+  background: #fff; padding: 1rem 1.1rem; margin: 1.1rem 0;
+}
+.probe .q { font-weight: 600; margin-bottom: 0.7rem; }
+.probe button.opt {
+  display: block; width: 100%; text-align: left;
+  font-family: inherit; font-size: 0.95rem;
+  background: var(--paper); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 6px;
+  padding: 0.55rem 0.8rem; margin: 0.4rem 0; cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.probe button.opt:hover { border-color: var(--accent-2); }
+.probe button.opt.correct { background: var(--win-bg); border-color: var(--win-brd); }
+.probe button.opt.wrong   { background: var(--warn-bg); border-color: var(--warn-brd); }
+.probe .fb {
+  margin-top: 0.7rem; font-size: 0.92rem; color: var(--ink-soft);
+  display: none; padding-top: 0.6rem; border-top: 1px dashed var(--rule);
+}
+.probe .fb.show { display: block; }
+
+details.reveal {
+  border: 1px solid var(--rule); border-radius: 6px;
+  padding: 0.6rem 0.9rem; margin: 1rem 0; background: #fff;
+}
+details.reveal summary {
+  cursor: pointer; font-weight: 600; color: var(--accent-2);
+  font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.95rem;
+}
+details.reveal[open] summary { margin-bottom: 0.6rem; }
+
+/* ---- Footer nav + ask-your-teacher reminder ---- */
+.ask-teacher {
+  margin-top: 3rem; padding: 1rem 1.2rem;
+  background: var(--derive-bg); border-radius: 8px;
+  font-size: 0.95rem; color: var(--ink-soft);
+}
+.lesson-nav {
+  margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--rule);
+  display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
+  font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.88rem;
+}
+footer.src {
+  margin-top: 2rem; font-size: 0.85rem; color: var(--ink-soft);
+  border-top: 1px solid var(--rule); padding-top: 0.8rem;
+}
+
+/* ---- Print ---- */
+@media print {
+  body { max-width: none; font-size: 11pt; padding: 0; color: #000; }
+  .probe button.opt { display: none; }
+  .probe .fb { display: block; }
+  details.reveal[open] summary, details.reveal summary { color: #000; }
+  details.reveal > *:not(summary) { display: block !important; }
+  .lesson-nav, .ask-teacher { page-break-inside: avoid; }
+  a { color: #000; border: none; }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 0.8em; color: #555; }
+}

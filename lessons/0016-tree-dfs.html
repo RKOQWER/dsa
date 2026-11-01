@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 16 — Tree DFS (return info up the tree)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 3 · Recursion-driven patterns</p>
+<span class="lesson-no">Lesson 16 of the course</span>
+<h1>Tree DFS — deriving "what do I ask my children, and what do I tell my parent?"</h1>
+
+<p>Almost every binary-tree problem is solved by one question asked at each node: <strong>"what information do I need back from my left and right subtrees, and what single piece of information do I return to my own parent?"</strong> By the end you'll turn a cold tree problem into that question automatically, and know when the answer must be a value you return versus a running best you track on the side.</p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Warm-up — recall from earlier lessons (no peeking)</h2>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. From Lesson 14, which recursion flavor fits "compute the maximum depth of a tree"?</div>
+  <button class="opt" data-correct="true" data-fb="Right — one combined value (a depth), built from children's returns: return 1 + max(left, right). That's return-up.">Return a value up and combine children's returns</button>
+  <button class="opt" data-correct="false" data-fb="Accumulate-into-a-list is for enumerating MANY things (all paths); max depth is a single value.">Accumulate every node into a shared list</button>
+  <button class="opt" data-correct="false" data-fb="Two pointers needs a linear structure with a directional signal, not a tree.">Two pointers from both ends</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. From Lesson 15, what makes backtracking faster than "enumerate everything then filter"?</div>
+  <button class="opt" data-correct="false" data-fb="Sorting helps dedup, but it isn't what makes backtracking fast.">Sorting the input first</button>
+  <button class="opt" data-correct="true" data-fb="Yes — pruning: checking validity as you build discards impossible branches before exploring them.">Pruning invalid branches before recursing into them</button>
+  <button class="opt" data-correct="false" data-fb="Caching overlapping subproblems is dynamic programming, a later part — not backtracking's speedup.">Caching every subproblem result</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving tree DFS from scratch</h2>
+
+<p>Take <strong>maximum depth of a binary tree</strong>. A tree is self-similar (Lesson 14): each child is itself a tree. So recursion is the natural fit — the only real question is <em>what each call returns.</em></p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Frame it as the node's-eye view:</strong> stand at one node. You cannot see the whole tree, but you can <em>ask</em> each child subtree a question and trust the answer (the leap of faith from Lesson 14). What do you ask? "How deep are you?" If the left subtree is depth L and the right is depth R, then your depth is <code>1 + max(L, R)</code> — one for yourself, plus the deeper child. Base case: an empty subtree has depth 0.</p>
+  <pre><code>def maxDepth(node):
+    if not node:               # base: empty subtree
+        return 0
+    L = maxDepth(node.left)    # ask left child
+    R = maxDepth(node.right)   # ask right child
+    return 1 + max(L, R)       # combine into MY answer, hand up</code></pre>
+  <p>That's the entire pattern. The hard part of any tree problem is never the recursion plumbing — it's answering the two design questions: <strong>what do I ask my children</strong>, and <strong>what do I return to my parent.</strong> Get those two right and the code writes itself.</p>
+</div>
+
+<h3>Top-down vs bottom-up — the real distinction</h3>
+<p>Both directions are DFS; they differ in <em>when</em> a node does its work relative to visiting its children.</p>
+<ul>
+  <li><strong>Bottom-up (post-order):</strong> you recurse into the children <em>first</em>, then combine their returned values into your own answer. This is the common case — max depth, "is this subtree balanced", diameter, subtree sums. Information flows <em>upward</em>. You use it whenever a node's answer depends on facts about its subtrees.</li>
+  <li><strong>Top-down (pre-order):</strong> you compute something for the current node <em>before</em> recursing, and pass it <em>down</em> as an argument. You use it when a node's answer depends on the path from the root — for example "is this node's value the max along the root-to-here path" (Count Good Nodes), where you carry the running max downward.</li>
+</ul>
+
+<!-- ============ THE KEY TECHNIQUE ============ -->
+<h2>The technique that unlocks the hard tree problems: return one thing, track another</h2>
+<p>Some problems ask for a quantity that is <em>not</em> the same thing each node needs to report upward. The classic is <strong>diameter</strong> (longest path between any two nodes). Here is the subtlety that confuses everyone, stated plainly:</p>
+<div class="callout derive">
+  <span class="label">The split between "answer" and "return value"</span>
+  <p>A node's <em>contribution to a path that goes through it and bends</em> is <code>leftHeight + rightHeight</code> — but that bent path <strong>cannot be extended by the parent</strong> (a parent can only attach to a straight downward arm). So the node must <em>return</em> the straight arm it can offer upward, <code>1 + max(left, right)</code>, while <em>recording</em> the bent path <code>left + right</code> into a shared "best so far" on the side. One value goes up for the parent to use; a different value updates the global answer.</p>
+  <pre><code>def diameterOfBinaryTree(root):
+    best = 0
+    def height(node):
+        nonlocal best
+        if not node:
+            return 0
+        L = height(node.left)
+        R = height(node.right)
+        best = max(best, L + R)       # bent path THROUGH this node (the answer)
+        return 1 + max(L, R)          # straight arm handed to the parent
+    height(root)
+    return best</code></pre>
+  <p>Recognizing "the thing I report to my parent differs from the thing I'm optimizing globally" is the single most transferable idea in tree DFS. It reappears in maximum path sum, longest univalue path, and the "longest zigzag" problems.</p>
+</div>
+
+<!-- ============ WHEN & WHY ============ -->
+<h2>When to reach for tree DFS, and why it works</h2>
+<p>Reach for DFS on any problem over a tree (or a structure you can treat as a tree) where a node's answer is built from facts about its subtrees — heights, sums, counts, "does every subtree satisfy X", lowest common ancestor, path sums. The tell is simply that the data is a tree and you're asked for a global property, a per-node property, or an existence check. It works because a tree is defined recursively — each node owns two smaller trees — so a single recursive function that handles one node and trusts the recursion on its children covers the entire tree in one O(n) pass, visiting each node exactly once.</p>
+<p>Prefer <strong>bottom-up</strong> when the node's answer needs its subtrees' answers (most problems); prefer <strong>top-down</strong> when the answer needs root-to-node path context carried downward. Use the <em>return-one-track-another</em> split when the quantity you optimize globally (a bent path through a node) is not the quantity a parent can reuse (a straight arm). If the tree is a <strong>BST</strong>, the extra ordering property unlocks sharper techniques — that's the next lesson (Lesson 18).</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — at least 10, easy → hard</h2>
+<p>Each asks the same two design questions. Solve them; ask me if you get stuck.</p>
+<ol>
+  <li><strong>Maximum Depth of Binary Tree</strong> (Easy) — <a href="https://leetcode.com/problems/maximum-depth-of-binary-tree/">link</a></li>
+  <li><strong>Invert Binary Tree</strong> (Easy) — <a href="https://leetcode.com/problems/invert-binary-tree/">link</a></li>
+  <li><strong>Same Tree</strong> (Easy) — <a href="https://leetcode.com/problems/same-tree/">link</a></li>
+  <li><strong>Diameter of Binary Tree</strong> (Easy, but uses return-one-track-another) — <a href="https://leetcode.com/problems/diameter-of-binary-tree/">link</a></li>
+  <li><strong>Balanced Binary Tree</strong> (Easy) — <a href="https://leetcode.com/problems/balanced-binary-tree/">link</a></li>
+  <li><strong>Subtree of Another Tree</strong> (Easy) — <a href="https://leetcode.com/problems/subtree-of-another-tree/">link</a></li>
+  <li><strong>Lowest Common Ancestor of a Binary Tree</strong> (Medium) — <a href="https://leetcode.com/problems/lowest-common-ancestor-of-a-binary-tree/">link</a></li>
+  <li><strong>Count Good Nodes in Binary Tree</strong> (Medium — top-down path context) — <a href="https://leetcode.com/problems/count-good-nodes-in-binary-tree/">link</a></li>
+  <li><strong>Path Sum III</strong> (Medium — composes with prefix sums) — <a href="https://leetcode.com/problems/path-sum-iii/">link</a></li>
+  <li><strong>Construct Binary Tree from Preorder and Inorder Traversal</strong> (Medium) — <a href="https://leetcode.com/problems/construct-binary-tree-from-preorder-and-inorder-traversal/">link</a></li>
+  <li><strong>Binary Tree Maximum Path Sum</strong> (Hard) — <a href="https://leetcode.com/problems/binary-tree-maximum-path-sum/">link</a></li>
+  <li><strong>Serialize and Deserialize Binary Tree</strong> (Hard) — <a href="https://leetcode.com/problems/serialize-and-deserialize-binary-tree/">link</a></li>
+</ol>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>Path Sum III</strong> (Medium 437) — <a href="https://leetcode.com/problems/path-sum-iii/">link</a> — composes tree DFS (this lesson) with the <em>prefix-sum + hashmap</em> idea (Lessons 4 and 5). It's labelled Medium but the composition is genuinely hard; it's the cleanest showcase of stacking two earlier patterns. Try it before opening the decomposition.</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p>Count downward paths (not necessarily root-to-leaf) whose values sum to a target. Brute force: from every node, walk every downward path and sum — O(n²) or worse.</p>
+  <p><strong>Piece A (prefix sum + hashmap, Lessons 4 &amp; 5):</strong> recall the array trick "number of subarrays summing to k" — keep a running prefix sum and a hashmap of how many times each prefix value has occurred; a subarray summing to k exists wherever <code>prefix − k</code> was seen before. That is the exact same counting idea.</p>
+  <p><strong>Piece B (tree DFS, this lesson):</strong> apply that counting along each <em>root-to-current</em> path instead of an array. DFS downward carrying the running prefix sum and the hashmap of prefix counts seen on the current path; at each node add <code>count[prefix − target]</code>. The twist unique to trees: you must <em>undo</em> the current node's prefix from the map as you return (the do/recurse/undo rhythm from Lesson 15), so a path only counts prefixes that are actually its ancestors.</p>
+  <pre><code>def pathSum(root, target):
+    count = {0: 1}          # prefix-count hashmap (Lessons 4 & 5)
+    total = 0
+    def dfs(node, prefix):
+        nonlocal total
+        if not node: return
+        prefix += node.val
+        total += count.get(prefix - target, 0)   # paths ending here
+        count[prefix] = count.get(prefix, 0) + 1  # do
+        dfs(node.left, prefix)
+        dfs(node.right, prefix)
+        count[prefix] -= 1                         # undo (leave the path)
+    dfs(root, 0)
+    return total</code></pre>
+  <p>The Hard = (prefix-sum/hashmap counting) + (tree DFS carrying state down with an undo on the way back up). Both pieces you already own. <strong>Name the pieces and the Hard stops being hard.</strong></p>
+</details>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If you can't decide what a node should return versus track on the side, or whether a problem is top-down or bottom-up, bring it to me — articulating "what I ask my children, what I tell my parent" out loud is the fastest way to unstick a tree problem.
+</div>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Tree DFS</h2>
+<p>The compressed version. A 2-minute re-read should reload the whole pattern.</p>
+
+<h3>When to use it, and why</h3>
+<p>Use on any tree problem where a node's answer is built from facts about its subtrees (heights, sums, counts, balance, LCA, path sums), or needs root-to-node path context. It works because a tree is recursively defined — one function handling a single node and trusting the recursion on its children visits every node once, O(n).</p>
+
+<h3>The two design questions (ask these first)</h3>
+<ul>
+  <li><strong>What do I ask my children?</strong> (the recursive return from each subtree)</li>
+  <li><strong>What do I return to my parent?</strong> (the one value combining myself + children)</li>
+</ul>
+
+<h3>Top-down vs bottom-up</h3>
+<p>Bottom-up (post-order): recurse first, then combine children's returns — the common case. Top-down (pre-order): compute for the node, pass context down as an argument — for root-to-node path problems.</p>
+
+<h3>Return-one-track-another (unlocks the hards)</h3>
+<p>When the quantity you optimize globally (e.g. a bent path through a node, <code>L + R</code>) differs from what a parent can reuse (a straight arm, <code>1 + max(L, R)</code>), return the arm and update a shared <code>best</code> on the side. Core of diameter, max path sum, longest univalue path.</p>
+
+<h3>Template</h3>
+<pre><code>def dfs(node):
+    if not node: return base
+    L = dfs(node.left); R = dfs(node.right)
+    best = max(best, combine_through(node, L, R))  # the answer (side)
+    return extend_upward(node, L, R)               # for the parent</code></pre>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> NeetCode's Trees playlist — <a href="https://neetcode.io/courses">neetcode.io/courses</a> — derives max-depth, diameter, and max-path-sum with exactly the "return vs track" split. For LCA, read the LeetCode official editorial.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 15: Backtracking</span>
+  <span>Next: Lesson 17 — Tree BFS →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

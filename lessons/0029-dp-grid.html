@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 29 — Grid DP</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 5 · Dynamic Programming</p>
+<span class="lesson-no">Lesson 29 of the course</span>
+<h1>Grid DP — when the state is a cell (row, col)</h1>
+
+<p>When a problem lives on a 2D grid and asks for a best path, a count of paths, or a best region, the DP state is almost always the cell <code>(r, c)</code>, and each cell's answer is built from its neighbors (usually up and left). This is the 1D idea lifted into two dimensions. Once you see "I'm at a cell and I came from a bounded set of adjacent cells," the recurrence writes itself.</p>
+
+<!-- SPACED RETRIEVAL -->
+<h2>Warm-up — recall (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. In the knapsack family (Lesson 28), what had to be part of the state besides the item index?</div>
+  <button class="opt" data-correct="true" data-fb="Right — the remaining budget/capacity, because it changes what's optimal from the same item onward.">The remaining budget/capacity</button>
+  <button class="opt" data-correct="false" data-fb="Items were often unsorted; order wasn't the state.">The sorted order of items</button>
+  <button class="opt" data-correct="false" data-fb="A running hash wasn't the knapsack state.">A hash of chosen items</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. Matrix traversal (Lesson 9) taught you to treat a grid as a graph. How does grid DP differ from a plain grid BFS/DFS?</div>
+  <button class="opt" data-correct="false" data-fb="Both can visit every cell; visiting isn't the distinction.">Grid DP visits fewer cells</button>
+  <button class="opt" data-correct="true" data-fb="Yes — grid DP combines answers from neighboring cells (optimal substructure with overlap), rather than just traversing to mark reachability.">Grid DP combines optimal sub-answers from neighbor cells, not just reachability</button>
+  <button class="opt" data-correct="false" data-fb="Grid DP usually needs no explicit stack/queue; that's not the key difference.">Grid DP never uses a queue</button>
+</div>
+
+<!-- DERIVATION -->
+<h2>Deriving grid DP</h2>
+<p>Take <strong>Unique Paths</strong>: a robot at the top-left of an m×n grid moves only right or down; count the distinct paths to the bottom-right.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Find the choice — but run it backwards.</strong> Ask not "where can I go?" but "how could I have <em>arrived</em> at cell <code>(r, c)</code>?" Since moves are only right or down, the only cells that lead into <code>(r, c)</code> are the one directly above <code>(r-1, c)</code> and the one directly to the left <code>(r, c-1)</code>.</p>
+  <p><strong>So the count of paths to a cell is the sum of the counts to the two cells that feed it:</strong></p>
+  <pre><code>dp[r][c] = dp[r-1][c] + dp[r][c-1]</code></pre>
+  <p>with <code>dp</code> on the top row and left column equal to 1 (only one straight-line way to reach them). <strong>Spot the overlap:</strong> a recursive "count paths from here to the end" would revisit the same cell through many routes; because <code>dp[r][c]</code> is reused by both the cell below it and the cell to its right, caching the grid makes it O(m·n).</p>
+</div>
+
+<p><strong>The transferable shape:</strong> grid DP applies when each cell's answer depends on a fixed, small set of already-computed neighbor cells (classically up and left, sometimes up-left for diagonal moves). You fill the table in an order — row by row, left to right — that guarantees those neighbors are ready before you reach the cell. Because each cell only looks at the previous row and the current row's left neighbor, you can usually compress the table to a single row for O(n) space.</p>
+
+<!-- WHEN / WHY -->
+<h2>When to reach for grid DP, and why</h2>
+<ul>
+  <li><strong>The problem is on a 2D grid and asks for a best path cost, a count of paths, or the best rectangle/region, with movement restricted to a few directions.</strong> Restricted movement is what makes the dependency set of each cell small and acyclic, which is exactly what lets you fill a table in one pass instead of searching exponentially many paths.</li>
+  <li><strong>Each cell's answer is a simple combination of its neighbors' answers.</strong> If a cell depended on arbitrary far-away cells, a table wouldn't help; the locality (up/left) is the thing that makes it DP rather than a general search.</li>
+  <li><strong>You need the optimal value or a count, not the actual path.</strong> If you must output the path itself you can still backtrack through the table afterward, but the DP computes the aggregate first.</li>
+</ul>
+
+<!-- TEMPLATE -->
+<h2>The template</h2>
+<pre><code># Unique Paths — O(m*n) time, O(n) space (one rolling row)
+def uniquePaths(m, n):
+    row = [1] * n
+    for _ in range(1, m):
+        for c in range(1, n):
+            row[c] += row[c-1]      # row[c] is "above", row[c-1] is "left"
+    return row[-1]
+
+# Min Path Sum — same skeleton, combine with min + the cell's own cost
+def minPathSum(grid):
+    m, n = len(grid), len(grid[0])
+    dp = [[0]*n for _ in range(m)]
+    for r in range(m):
+        for c in range(n):
+            up   = dp[r-1][c] if r else float('inf')
+            left = dp[r][c-1] if c else float('inf')
+            base = 0 if (r==0 and c==0) else min(up, left)
+            dp[r][c] = grid[r][c] + base
+    return dp[m-1][n-1]
+</code></pre>
+
+<!-- PRACTICE -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only. For each, state which neighbor cells feed the current cell.</p>
+<ol>
+  <li><strong>Unique Paths</strong> (Medium) — <a href="https://leetcode.com/problems/unique-paths/">link</a></li>
+  <li><strong>Unique Paths II</strong> (Medium) — <a href="https://leetcode.com/problems/unique-paths-ii/">link</a></li>
+  <li><strong>Minimum Path Sum</strong> (Medium) — <a href="https://leetcode.com/problems/minimum-path-sum/">link</a></li>
+  <li><strong>Triangle</strong> (Medium) — <a href="https://leetcode.com/problems/triangle/">link</a></li>
+  <li><strong>Maximal Square</strong> (Medium) — <a href="https://leetcode.com/problems/maximal-square/">link</a></li>
+  <li><strong>Minimum Falling Path Sum</strong> (Medium) — <a href="https://leetcode.com/problems/minimum-falling-path-sum/">link</a></li>
+  <li><strong>Range Sum Query 2D - Immutable</strong> (Medium) — <a href="https://leetcode.com/problems/range-sum-query-2d-immutable/">link</a></li>
+  <li><strong>Count Square Submatrices with All Ones</strong> (Medium) — <a href="https://leetcode.com/problems/count-square-submatrices-with-all-ones/">link</a></li>
+  <li><strong>Cherry Pickup II</strong> (Hard) — <a href="https://leetcode.com/problems/cherry-pickup-ii/">link</a></li>
+  <li><strong>Dungeon Game</strong> (Hard) — <a href="https://leetcode.com/problems/dungeon-game/">link</a></li>
+  <li><strong>Maximal Rectangle</strong> (Hard) — <a href="https://leetcode.com/problems/maximal-rectangle/">link</a></li>
+  <li><strong>Minimum Falling Path Sum II</strong> (Hard) — <a href="https://leetcode.com/problems/minimum-falling-path-sum-ii/">link</a></li>
+</ol>
+
+<!-- COMPOSITION -->
+<h2>Composition — a Hard built from grid DP + earlier patterns</h2>
+<p><strong>Dungeon Game</strong> (Hard) — <a href="https://leetcode.com/problems/dungeon-game/">link</a>. Composes grid DP with a <em>reversed</em> fill direction, drawing on the backward-reasoning habit from DP recognition (Lesson 26).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The problem:</strong> a knight starts top-left, moves right/down to the bottom-right, each cell adds or subtracts health; find the minimum starting health so health never drops to 0 or below anywhere.</p>
+  <p><strong>Why the naive forward grid DP fails:</strong> "max health collected so far" at a cell does not determine the future — you could arrive with lots of health but still die later, or arrive lean but survive. The quantity that actually constrains the answer is the <em>health you need going forward</em>, which depends on cells you haven't filled yet.</p>
+  <p><strong>Pattern A — grid DP, but fill from the destination backward:</strong> define <code>dp[r][c]</code> = minimum health needed <em>entering</em> cell (r,c) to survive to the end. Then <code>dp[r][c] = max(1, min(dp[r+1][c], dp[r][c+1]) - dungeon[r][c])</code>. Fill bottom-right to top-left so the neighbors you depend on are already known.</p>
+  <p><strong>Pattern B — the backward-reasoning idea (Lesson 26):</strong> when "what I've accumulated" doesn't capture the future, flip the recurrence to reason from the goal backward. That is the same move that made several recurrences in Lesson 26 click.</p>
+  <p>The Hard = (grid DP neighbor-combination) + (reverse the fill because the constraint is forward-looking). The grid machinery is this lesson; the reversal is the only new idea.</p>
+</details>
+
+<h2>Your reps</h2>
+<ol>
+  <li>Solve Maximal Square and notice the recurrence uses <em>three</em> neighbors (up, left, up-left) — the first grid DP where the diagonal matters.</li>
+  <li>Do Dungeon Game forward first, watch it fail, then flip it. Feeling the failure is the point.</li>
+</ol>
+
+<!-- REFERENCE -->
+<h2 id="refcard">Reference card — Grid DP</h2>
+<h3>When, and why</h3>
+<p>Use it on a 2D grid asking for a best path cost, a count of paths, or a best region, with movement restricted to a few directions. Restricted movement keeps each cell's dependency set small and acyclic, so filling a table row by row computes every cell once in O(m·n) instead of searching exponentially many paths.</p>
+<h3>The move</h3>
+<p>Define <code>dp[r][c]</code> for the cell. Express it from the neighbors that feed it (up, left, sometimes up-left). Fill in an order that computes those neighbors first; compress to one row for O(n) space when only the previous row is needed. If the constraint looks forward, fill from the destination backward.</p>
+<h3>Template</h3>
+<pre><code>for r in range(m):
+    for c in range(n):
+        dp[r][c] = cell_cost(r,c) + combine(dp[r-1][c], dp[r][c-1])</code></pre>
+<h3>Classic problems</h3>
+<p>Unique Paths (M), Minimum Path Sum (M), Maximal Square (M), Triangle (M), Dungeon Game (H), Maximal Rectangle (H), Cherry Pickup II (H).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If a grid DP produces wrong answers, it is almost always the fill order or a forward-vs-backward issue — tell me which neighbors feed your cell and I'll check the direction with you.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> <a href="https://neetcode.io/courses">neetcode.io/courses</a> (2-D Dynamic Programming). Maximal Rectangle is best understood after the monotonic-stack histogram lesson, so revisit it later.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 28: Knapsack family</span>
+  <span>Next: Lesson 30 — String DP →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

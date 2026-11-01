@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 2 — Two Pointers (derived, not memorized)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 1 · Linear structures</p>
+<span class="lesson-no">Lesson 02 of the course</span>
+<h1>Two Pointers — derived from the waste in brute force</h1>
+
+<p>Your first real pattern. By the end you'll be able to <em>derive</em> two pointers on a cold problem (not recall it), know the exact signal that triggers it, and have a template you can reproduce from memory. We push all the way to a <strong>Hard</strong>.</p>
+
+<!-- ============ SPACED WARM-UP (anti-forgetting) ============ -->
+<h2>Warm-up — recall from Lesson 1 (no peeking)</h2>
+<p>Before new material, reload the old. Answer from memory, then click.</p>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. In step S, you hit a problem and can't find a "slow brute force" beneath the pattern. What does that tell you?</div>
+  <button class="opt" data-correct="false" data-fb="No — a missing brute force isn't a dead end. It's a classification signal.">You're stuck; pick a different pattern</button>
+  <button class="opt" data-correct="true" data-fb="Right. It's a traversal/enumeration problem — the correct traversal IS the answer, no slower baseline exists. You were done at step P.">It's a traversal problem — you were done at P</button>
+  <button class="opt" data-correct="false" data-fb="Not necessarily — many problems that lack a slower baseline are simple traversals, not DP.">It must be dynamic programming</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. Which signal makes "binary search on the answer" valid?</div>
+  <button class="opt" data-correct="false" data-fb="Sortedness enables classic binary search on an array, but 'on the answer' needs something else.">The array is sorted</button>
+  <button class="opt" data-correct="true" data-fb="Yes — monotone feasibility: if value X works, everything past it works (or fails) consistently. That's what lets you binary-search the answer space.">Monotone feasibility of the answer</button>
+  <button class="opt" data-correct="false" data-fb="Small n points to backtracking, not binary search on the answer.">The input size is small</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving two pointers from scratch</h2>
+
+<p>Take the cleanest possible case. Sorted array, find whether <strong>two numbers sum to a target</strong>.</p>
+
+<p><strong>Classify first (your new step-S habit):</strong> this is "find a pair that works" — an existence/search question, and it <em>does</em> have a slow brute force. So it's the optimization kind: state brute force, hunt the waste.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Brute force:</strong> every pair <code>(i, j)</code> → O(n²). On <code>[1, 2, 4, 7, 11]</code>, target 9: try 1+2, 1+4, 1+7, 1+11, 2+4…</p>
+  <p><strong>Spot the waste:</strong> the array is <em>sorted</em>, and brute force ignores that entirely. When 1+11 = 12 overshoots the target 9, brute force shrugs and tries 1+2 next. But think: 11 is the largest element. Paired with the <em>smallest</em> (1) it already overshoots — so 11 can't pair with anything bigger either. The sortedness told me something and I threw it away.</p>
+  <p><strong>The insight (= the pattern):</strong> put one pointer at each end. Look at <code>a[lo] + a[hi]</code>:</p>
+  <ul>
+    <li>too big → the only way to get smaller is move <code>hi</code> left (every other element on the right is even bigger).</li>
+    <li>too small → move <code>lo</code> right.</li>
+    <li>equal → found it.</li>
+  </ul>
+  <p>Each step <em>provably</em> eliminates a whole row/column of the brute-force grid. Pointers only move inward → O(n), O(1) space. <strong>That convergence IS the two-pointer pattern.</strong> It fell out of "sorted + find a pair," not from memory.</p>
+</div>
+
+<h3>The deeper principle (so it transfers)</h3>
+<p>Two pointers works whenever <strong>moving a pointer has a <em>monotonic, predictable</em> effect on some quantity</strong>, so you always know which pointer to move. Sorted-pair-sum is the obvious case; the same logic powers palindrome checks (ends inward), container-with-water (shorter wall moves), and fast/slow cycle detection. If moving a pointer doesn't give you reliable directional information, two pointers won't apply — that's your discrimination test.</p>
+
+<div class="callout derive">
+  <span class="label">How to DERIVE two pointers cold — the intuition to remember</span>
+  <p>When you've never seen the problem and only have a brute force over all <strong>pairs</strong>, these two questions turn it into two pointers by yourself:</p>
+  <ol>
+    <li><strong>Can I evaluate one pair that <em>proves</em> other pairs are useless?</strong> Brute force collapses to O(n) only when checking one pair lets you discard many without looking. So start at the two <strong>extremes</strong> and ask at each step: "if I move this pointer, am I throwing away pairs that were <em>provably</em> no better?" Move that pointer. The pattern is really a <strong>proof of elimination</strong>, not a trick.</li>
+    <li><strong>If the answer depends on TWO factors, max out one for free, then you only fight over the other.</strong> In Container With Most Water the area is <code>width × min(height)</code> — two factors. You can't control height, but you <em>can</em> max width instantly by starting the pointers at both ends. Now width can only shrink, so the <em>only</em> way to ever do better is to improve the other factor, height — which means abandoning the <strong>shorter</strong> line (it's the bottleneck capping the height). Moving the taller line shrinks width <em>and</em> can't raise the capped height → provably useless. So move the short one.</li>
+  </ol>
+  <p class="note" style="margin-top:0.6rem"><strong>The one sentence to keep:</strong> start at the extremes; at every step move the pointer whose move discards only pairs you've <em>proven</em> can't win — and when two factors make the answer, fix one at its best so you fight over just one.</p>
+</div>
+
+<!-- ============ SIGNALS ============ -->
+<h2>The signals (step P)</h2>
+<p>There are three distinct <em>flavors</em> of two pointers. They are not interchangeable — each solves a different shape of problem. Here is each one explained in full, so you understand <em>why</em> it fits, not just that it does.</p>
+
+<h3>Flavor 1 — Opposite ends, converging inward</h3>
+<p>You start one pointer at the left end of a <strong>sorted</strong> array and one at the right end, and you move them toward each other. You use this when the problem asks you to <em>find a pair (or triple) of elements with some target sum or property</em>. It works because the array is sorted: by comparing the current pair's sum against the target, you always know which direction gets you closer, so you can discard one candidate per step instead of checking all pairs. Palindrome-checking is the same flavor — you compare the character at the left end with the character at the right end and walk both inward, because a palindrome is defined by that mirror symmetry.</p>
+
+<h3>Flavor 2 — Same direction, a slow "write" pointer trailing a fast "read" pointer</h3>
+<p>Both pointers start at the front and move the same way, but at different speeds. The fast pointer reads every element; the slow pointer marks where the next <em>kept</em> element should be written. You use this when the problem asks you to <em>modify an array in place</em> — remove a value, deduplicate, or partition it (as in Dutch-national-flag / Sort Colors). It works because you're compacting the "good" elements to the front while the fast pointer scans ahead, so you never need a second array.</p>
+
+<h3>Flavor 3 — Fast &amp; slow (Floyd's tortoise and hare)</h3>
+<p>One pointer advances one step at a time, the other advances two steps at a time. You use this on <strong>linked lists</strong> to find the middle node, detect a cycle, or find the k-th node from the end. It works because the two pointers move at a fixed ratio: when the fast one reaches the end, the slow one is exactly halfway; and if there's a cycle, the fast one eventually laps the slow one and they collide.</p>
+
+<h3>A special case of Flavor 1 — "move the limiting side"</h3>
+<p>When the problem is "maximize an area" or "optimize some value computed from a pair of positions" (Container With Most Water is the classic), you still start at both ends, but the rule for which pointer to move changes: you move the pointer on the <em>limiting</em> side (the shorter wall), because that's the only move that could possibly improve the result. We derive exactly why this is safe in the practice section below.</p>
+
+
+<!-- ============ TEMPLATE ============ -->
+<h2>The template (reproduce from memory)</h2>
+<pre><code># Opposite-ends converge (sorted array, find a pair summing to target)
+def two_sum_sorted(a, target):
+    lo, hi = 0, len(a) - 1
+    while lo < hi:
+        s = a[lo] + a[hi]
+        if s == target:
+            return (lo, hi)
+        elif s < target:
+            lo += 1          # need bigger -> move left pointer right
+        else:
+            hi -= 1          # need smaller -> move right pointer left
+    return None
+
+# Same-direction (slow/fast): in-place remove, keep order
+def remove_val(a, val):
+    slow = 0
+    for fast in range(len(a)):
+        if a[fast] != val:
+            a[slow] = a[fast]
+            slow += 1
+    return slow              # new length; a[:slow] is the kept prefix
+</code></pre>
+<p>A compact reference version of all of this is at the <a href="#refcard">bottom of this lesson</a>, designed so a 2-minute re-read reloads the whole pattern.</p>
+
+<!-- ============ COLD PRACTICE through HARD ============ -->
+<h2>Cold practice — through Hard</h2>
+<p>Try them cold (no code first — just reason out the approach), then check yourself. Ordered easy → hard.</p>
+
+<ol>
+  <li><strong>Valid Palindrome</strong> (Easy) — <a href="https://leetcode.com/problems/valid-palindrome/">link</a>. Warm-up: which flavor, and what's the waste vs. building a reversed string?</li>
+  <li><strong>Two Sum II - Input Array Is Sorted</strong> (Medium) — <a href="https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/">link</a>. The purest converging-ends problem.</li>
+  <li><strong>Remove Duplicates from Sorted Array</strong> (Easy) — <a href="https://leetcode.com/problems/remove-duplicates-from-sorted-array/">link</a>. Slow/fast write pointer.</li>
+  <li><strong>Move Zeroes</strong> (Easy) — <a href="https://leetcode.com/problems/move-zeroes/">link</a>. Same-direction in-place.</li>
+  <li><strong>Sort Colors</strong> (Medium) — <a href="https://leetcode.com/problems/sort-colors/">link</a>. Dutch national flag — three pointers.</li>
+  <li><strong>3Sum</strong> (Medium) — <a href="https://leetcode.com/problems/3sum/">link</a>. The key transfer problem: how do you turn a <em>triple</em>-finding problem into repeated <em>pair</em>-finding? What has to happen to the array first, and why?</li>
+  <li><strong>Container With Most Water</strong> (Medium) — <a href="https://leetcode.com/problems/container-with-most-water/">link</a>. The array is <em>not</em> sorted. Does two pointers still apply? Derive <em>why</em> moving the shorter wall is always safe.</li>
+  <li><strong>4Sum</strong> (Medium) — <a href="https://leetcode.com/problems/4sum/">link</a>. Peel off two elements, two-pointer the rest.</li>
+  <li><strong>Linked List Cycle</strong> (Easy) — <a href="https://leetcode.com/problems/linked-list-cycle/">link</a>. Fast &amp; slow.</li>
+  <li><strong>Linked List Cycle II</strong> (Medium) — <a href="https://leetcode.com/problems/linked-list-cycle-ii/">link</a>. Fast &amp; slow, then find the entry node.</li>
+  <li><strong>3Sum Closest</strong> (Medium) — <a href="https://leetcode.com/problems/3sum-closest/">link</a>.</li>
+  <li><strong>Boats to Save People</strong> (Medium) — <a href="https://leetcode.com/problems/boats-to-save-people/">link</a>. Sort, then converge.</li>
+  <li><strong>Trapping Rain Water</strong> (Hard) — <a href="https://leetcode.com/problems/trapping-rain-water/">link</a>. The composition problem, derived below.</li>
+</ol>
+
+<div class="callout trap">
+  <span class="label">Trap — sharpen your discrimination</span>
+  <p><strong>Two Sum</strong> (the original, Easy 1) on an <strong>unsorted</strong> array. The "find a pair summing to target" phrasing screams two pointers — but the array isn't sorted, and sorting destroys the original indices the problem asks you to return. Here the right tool is a <strong>hashmap</strong> (seen-value → index), O(n). Lesson: two pointers needs the <em>monotonic directional signal</em> (usually from sortedness). Remove that, and the signal is lying to you. Always confirm the precondition, don't just match keywords.</p>
+</div>
+
+<!-- ============ COMPOSITION (hard) ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p>Recall from Lesson 1: hards are usually two patterns stacked. <strong>Trapping Rain Water</strong> (Hard 42) — <a href="https://leetcode.com/problems/trapping-rain-water/">link</a> — composes two-pointers with the prefix/suffix-max idea.</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p>Water over position <code>i</code> = <code>min(maxLeft, maxRight) − height[i]</code>. Brute force recomputes both maxes per position → O(n²).</p>
+  <p><strong>Pattern A (prefix/suffix):</strong> precompute left-max and right-max arrays → O(n) time, O(n) space.</p>
+  <p><strong>Pattern B (two pointers) removes the extra space:</strong> keep <code>lo, hi</code> at the ends with running <code>maxL</code> (tallest seen from the left) and <code>maxR</code> (tallest seen from the right). The subtle unlock: at <code>lo</code> you know <code>maxL</code> exactly, but not the true right-max — yet you don't need it. Water is capped by the <em>shorter</em> wall (<code>min</code> of the two). When <code>maxL &lt; maxR</code>, the real right wall for <code>lo</code> is at least <code>maxR</code>, so it's taller than <code>maxL</code>, so <code>min</code> picks <code>maxL</code> — the left side is provably the binding wall and you can finalize <code>water = maxL − height[lo]</code> right now, without having scanned the whole right side. Then move <code>lo</code> inward. Symmetrically settle <code>hi</code> when the right side is shorter. O(n) time, O(1) space.</p>
+  <p><strong>Why "move the shorter side" here differs from Container With Most Water:</strong> same action, different reason. In Container, you move the shorter line because it's the <em>only</em> move that could improve the area. Here, you settle the shorter side because it's the side whose water is <em>already provable</em> — <code>min</code> makes the taller side's still-unknown exact max irrelevant. Spotting that the same move can rest on different proofs is a real skill.</p>
+  <pre><code>def trap(height):
+    lo, hi = 0, len(height) - 1
+    maxL = maxR = total = 0
+    while lo < hi:
+        if height[lo] < height[hi]:      # left side is the binding wall
+            maxL = max(maxL, height[lo])
+            total += maxL - height[lo]
+            lo += 1
+        else:                            # right side is the binding wall
+            maxR = max(maxR, height[hi])
+            total += maxR - height[hi]
+            hi -= 1
+    return total</code></pre>
+  <p>The Hard = (water formula insight) + (two-pointer "settle the provable side"). Neither piece is hard alone. <strong>That's the whole method for hards: name the pieces.</strong></p>
+</details>
+
+<h2>Your reps before Lesson 3</h2>
+<ol>
+  <li>Solve the 3 practice problems above. For <strong>3Sum</strong> especially, articulate the "reduce a triple to a pair" move — that's the transferable idea.</li>
+  <li>Re-read the <a href="#refcard">reference card below</a> once; target recall of the three flavors + the discrimination test (you need a monotonic directional signal).</li>
+</ol>
+
+<!-- ============ EMBEDDED REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Two Pointers</h2>
+<p>The compressed version. If you've forgotten this pattern weeks from now, re-reading just this section should reload it.</p>
+
+<h3>When to use it, and why</h3>
+<ul>
+  <li><strong>Opposite ends, converging inward.</strong> On a sorted array, to find a pair/triple with a target sum or to check a palindrome. The sort tells you which pointer to move to get closer, so you discard one candidate per step instead of checking all pairs.</li>
+  <li><strong>Same direction (slow write, fast read).</strong> To modify an array in place — remove, deduplicate, or partition. The fast pointer scans every element; the slow pointer marks where the next kept element is written.</li>
+  <li><strong>Fast &amp; slow (tortoise and hare).</strong> On a linked list, to find the middle, detect a cycle, or find the k-th node from the end. The fixed 1-step vs 2-step ratio is what makes it land where you need.</li>
+  <li><strong>Opposite ends, move the limiting side.</strong> For "maximize an area / optimize a value from a pair of positions" (Container With Most Water). Move the pointer on the shorter side, because that is the only move that can improve the result.</li>
+</ul>
+
+<h3>The one-line reason it works</h3>
+<p>Moving a pointer has a monotonic, predictable effect on some quantity, so you always know which pointer to move — and each move eliminates a whole slab of the O(n²) brute-force grid, bringing it down to O(n).</p>
+
+<h3>How to derive it cold (the two intuitions)</h3>
+<ul>
+  <li><strong>Pairs → elimination.</strong> Start at the two extremes and move the pointer whose move discards only pairs you can <em>prove</em> are no better. Two pointers is a proof of elimination, not a trick.</li>
+  <li><strong>Two factors → fix one.</strong> If the answer is built from two factors (e.g. width × height), max one out for free by starting at the ends, so you only ever fight over the other. The bottleneck factor (the shorter line) is the one to abandon — moving the other can't help.</li>
+</ul>
+
+<h3>Discrimination test (when it does NOT apply)</h3>
+<p>If moving a pointer gives you no reliable directional information — for example "find a pair summing to target" on an <em>unsorted</em> array, or a problem where you must preserve original indices — two pointers does not apply. Reach for a hashmap instead. Match the precondition, not the keywords.</p>
+
+<h3>Templates (Python)</h3>
+<pre><code># opposite ends — sorted pair sum
+lo, hi = 0, len(a) - 1
+while lo < hi:
+    s = a[lo] + a[hi]
+    if s == target: return (lo, hi)
+    elif s < target: lo += 1
+    else: hi -= 1
+
+# same direction — in-place keep
+slow = 0
+for fast in range(len(a)):
+    if keep(a[fast]):
+        a[slow] = a[fast]; slow += 1
+# a[:slow] is the result
+
+# fast & slow — linked list cycle
+slow = fast = head
+while fast and fast.next:
+    slow = slow.next; fast = fast.next.next
+    if slow is fast: return True
+return False</code></pre>
+
+<h3>Complexity and classic problems</h3>
+<p>Time O(n), or O(n log n) if you must sort first (as in 3Sum). Space O(1).</p>
+<p>Practice set: Valid Palindrome (Easy), Two Sum II on a sorted array (Medium), 3Sum (Medium), Container With Most Water (Medium), Sort Colors (Medium), Linked List Cycle (Easy), Trapping Rain Water (Hard, composed with prefix/suffix max).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> Want me to walk through 3Sum, or explain why "move the shorter wall" is provably safe? Just ask. Confused about when two pointers does vs. doesn't apply? That's the most valuable question you can bring.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> NeetCode's two-pointers explanations are the clearest free walkthroughs — <a href="https://neetcode.io/courses">neetcode.io/courses</a> (Two Pointers section). For 3Sum specifically, watch the derivation of "sort, then fix one + two-pointer the rest."
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 1: The Solving Framework (UPSIR)</span>
+  <span>Next: Lesson 3 — Sliding Window →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

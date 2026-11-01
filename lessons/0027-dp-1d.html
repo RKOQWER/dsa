@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 27 — 1D DP</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 5 · Dynamic Programming</p>
+<span class="lesson-no">Lesson 27 of the course</span>
+<h1>1D DP — when the state is a single index</h1>
+
+<p>The simplest and most common DP family: the subproblem is described by one number, usually "the answer for the prefix (or suffix) ending at index i." Master this shape and you own climbing stairs, house robber, decode ways, and word break — plus the habit of reducing a linear problem to "what's the best I can do up to here."</p>
+
+<!-- SPACED RETRIEVAL -->
+<h2>Warm-up — recall (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. From Lesson 26, what is the single most important step in solving any DP?</div>
+  <button class="opt" data-correct="true" data-fb="Yes — naming the state (the minimal parameters identifying a subproblem). Everything else follows from a correct state.">Naming the state correctly</button>
+  <button class="opt" data-correct="false" data-fb="Tabulation is just an implementation choice; the recurrence (which needs the state) comes first.">Choosing tabulation over memoization</button>
+  <button class="opt" data-correct="false" data-fb="Base cases matter but are trivial once the state and recurrence are right.">Writing the base cases</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. Which combine operator fits a "count the number of ways" DP?</div>
+  <button class="opt" data-correct="false" data-fb="max/min is for best-value problems, not counting.">max or min</button>
+  <button class="opt" data-correct="true" data-fb="Right — addition. The number of ways to reach a state is the sum of ways to reach the states that lead into it.">addition (+)</button>
+  <button class="opt" data-correct="false" data-fb="or is for feasibility (is it possible), not counting.">or</button>
+</div>
+
+<!-- DERIVATION -->
+<h2>Deriving the 1D shape</h2>
+<p>Take <strong>House Robber</strong>: houses in a line, each with money, you cannot rob two adjacent houses, maximize the take.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Find the choice at the current step.</strong> Stand at house <code>i</code>. You have exactly two options: rob it, or skip it.</p>
+  <ul>
+    <li>If you <em>rob</em> house <code>i</code>, you collect <code>nums[i]</code> but cannot touch house <code>i-1</code>, so the rest of your money comes from the best solution ending at <code>i-2</code>.</li>
+    <li>If you <em>skip</em> house <code>i</code>, your total is just the best solution ending at <code>i-1</code>.</li>
+  </ul>
+  <p><strong>The state and recurrence fall out directly.</strong> Let <code>dp[i]</code> = max money robbable from houses <code>0..i</code>. Then:</p>
+  <pre><code>dp[i] = max(dp[i-1],            # skip house i
+            dp[i-2] + nums[i])  # rob house i</code></pre>
+  <p><strong>Spot the overlap:</strong> the naive recursion recomputes <code>dp[i-2]</code> from both branches, exponentially. Caching it — or filling a left-to-right array — makes it O(n). And since <code>dp[i]</code> only looks back two steps, you don't need the whole array: two rolling variables suffice, giving O(1) space.</p>
+</div>
+
+<p><strong>The transferable shape:</strong> a 1D DP exists whenever you can say "the best answer ending at position i is some combination of the best answers ending at a few earlier positions." The entire family is variations on which earlier positions you look back to, and how you combine them.</p>
+
+<!-- WHEN / WHY -->
+<h2>When to reach for 1D DP, and why</h2>
+<ul>
+  <li><strong>You are scanning a line (array or string) making a local choice at each position, and the choice's consequence reaches only a bounded number of earlier positions.</strong> Because each position depends on a few predecessors, you can compute positions left to right and each one in O(1), giving an O(n) total — far better than the exponential tree of trying every combination of choices.</li>
+  <li><strong>The question asks for a best value, a count, or a yes/no over all the ways to process the line.</strong> These three map to combining predecessors with max/min, with addition, or with or — the operator is chosen by the question, as in Lesson 26.</li>
+  <li><strong>You do not need to know <em>which</em> choices were made, only the optimal value or count.</strong> If you had to enumerate every actual configuration, that would be backtracking (Lesson 15); DP is for when only the aggregate matters and subproblems repeat.</li>
+</ul>
+
+<!-- TEMPLATE -->
+<h2>The template</h2>
+<pre><code># House Robber — O(n) time, O(1) space via rolling variables
+def rob(nums):
+    prev2, prev1 = 0, 0          # best ending at i-2, i-1
+    for x in nums:
+        prev2, prev1 = prev1, max(prev1, prev2 + x)
+    return prev1
+
+# Generic 1D tabulation
+def one_d_dp(n):
+    dp = [base] * (n + 1)
+    for i in range(start, n + 1):
+        dp[i] = combine(dp[i-1], dp[i-2], ...)   # look back a bounded amount
+    return dp[n]
+</code></pre>
+
+<!-- PRACTICE -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only. Name the state and recurrence first, then code.</p>
+<ol>
+  <li><strong>Climbing Stairs</strong> (Easy) — <a href="https://leetcode.com/problems/climbing-stairs/">link</a></li>
+  <li><strong>Min Cost Climbing Stairs</strong> (Easy) — <a href="https://leetcode.com/problems/min-cost-climbing-stairs/">link</a></li>
+  <li><strong>House Robber</strong> (Medium) — <a href="https://leetcode.com/problems/house-robber/">link</a></li>
+  <li><strong>House Robber II</strong> (Medium) — <a href="https://leetcode.com/problems/house-robber-ii/">link</a></li>
+  <li><strong>Decode Ways</strong> (Medium) — <a href="https://leetcode.com/problems/decode-ways/">link</a></li>
+  <li><strong>Word Break</strong> (Medium) — <a href="https://leetcode.com/problems/word-break/">link</a></li>
+  <li><strong>Maximum Subarray</strong> (Medium) — <a href="https://leetcode.com/problems/maximum-subarray/">link</a></li>
+  <li><strong>Maximum Product Subarray</strong> (Medium) — <a href="https://leetcode.com/problems/maximum-product-subarray/">link</a></li>
+  <li><strong>Longest Increasing Subsequence</strong> (Medium) — <a href="https://leetcode.com/problems/longest-increasing-subsequence/">link</a></li>
+  <li><strong>Jump Game</strong> (Medium) — <a href="https://leetcode.com/problems/jump-game/">link</a></li>
+  <li><strong>Best Time to Buy and Sell Stock with Cooldown</strong> (Medium) — <a href="https://leetcode.com/problems/best-time-to-buy-and-sell-stock-with-cooldown/">link</a></li>
+  <li><strong>Student Attendance Record II</strong> (Hard) — <a href="https://leetcode.com/problems/student-attendance-record-ii/">link</a></li>
+</ol>
+
+<!-- COMPOSITION -->
+<h2>Composition — a Hard built from 1D DP + earlier patterns</h2>
+<p><strong>Maximum Sum of 3 Non-Overlapping Subarrays</strong> (Hard) — <a href="https://leetcode.com/problems/maximum-sum-of-3-non-overlapping-subarrays/">link</a>. Composes 1D DP with <strong>prefix sum</strong> (Lesson 4) and the <strong>sliding-window</strong> fixed-size sum idea (Lesson 3).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The problem:</strong> pick three non-overlapping subarrays each of length k to maximize the total sum; return the starting indices.</p>
+  <p><strong>Pattern A — prefix sum / fixed window (Lessons 3–4):</strong> precompute the sum of every length-k window in O(n) using a prefix-sum array, so each window sum is O(1) to look up. Call this <code>wsum[i]</code> = sum of the window starting at i.</p>
+  <p><strong>Pattern B — 1D DP over "how many windows chosen so far":</strong> scan positions and keep the best single window to the left of each point, and the best pair of windows to the left, so that when you place the third window you can combine it with the best left-pair in O(1). This is a left-to-right DP where each position's answer builds on earlier positions' best-so-far — exactly the 1D shape, just carrying "best-1" and "best-2" aggregates.</p>
+  <p>The Hard = (prefix sum to get window sums fast) + (1D best-so-far DP to combine three of them). Both are tools you already have.</p>
+</details>
+
+<h2>Your reps</h2>
+<ol>
+  <li>Solve House Robber II by reusing House Robber twice — that reduction is the lesson.</li>
+  <li>For Maximum Subarray, write Kadane's as a 1D DP (<code>dp[i]</code> = best subarray ending at i) and notice it is the same rolling-variable shape.</li>
+</ol>
+
+<!-- REFERENCE -->
+<h2 id="refcard">Reference card — 1D DP</h2>
+<h3>When, and why</h3>
+<p>Use it when you scan a line making a local choice at each position whose effect reaches only a few earlier positions, and you need a best value, a count, or a yes/no over all ways to process the line. Because each position depends on a bounded number of predecessors, you compute left to right in O(n), and usually keep only the last few values for O(1) space.</p>
+<h3>The move</h3>
+<p>Define <code>dp[i]</code> = the answer for the prefix ending at i. Write it as a combination of <code>dp[i-1]</code>, <code>dp[i-2]</code>, … Choose the combine operator from the question: max/min for best, + for count, or for possible.</p>
+<h3>Template</h3>
+<pre><code>prev2, prev1 = base, base
+for x in nums:
+    cur = combine(prev1, prev2, x)
+    prev2, prev1 = prev1, cur
+return prev1</code></pre>
+<h3>Classic problems</h3>
+<p>Climbing Stairs (E), House Robber (M), Decode Ways (M), Word Break (M), Maximum Subarray / Kadane (M), LIS (M), Jump Game (M).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If a 1D DP won't come, tell me what the choice at position i is and which earlier positions it rules out — that's usually all we need to pin the recurrence.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> <a href="https://neetcode.io/courses">neetcode.io/courses</a> (1-D Dynamic Programming). Kadane's algorithm as a 1D DP is worth a dedicated read.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 26: DP Recognition</span>
+  <span>Next: Lesson 28 — Knapsack family →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

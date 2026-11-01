@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 12 — Quickselect</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 2 · Search, sort &amp; the answer space</p>
+<span class="lesson-no">Lesson 12 of the course</span>
+<h1>Quickselect — finding the k-th element without sorting everything</h1>
+
+<p>"Find the k-th largest" screams <em>sort it</em> (O(n log n)) or <em>heap</em> (O(n log k)). Both do more work than the question needs. Quickselect answers it in O(n) average by refusing to order the parts of the array that can't contain the answer. By the end you'll derive it from the realization that sorting is overkill.</p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Warm-up — recall earlier patterns (no peeking)</h2>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. Binary search collapses an O(n) scan to O(log n). What's the precondition it absolutely needs?</div>
+  <button class="opt" data-correct="false" data-fb="Distinct values help in some variants but aren't the core requirement.">All values must be distinct</button>
+  <button class="opt" data-correct="true" data-fb="Right — a monotone predicate (False…False True…True). One probe must provably kill one whole side.">A monotone yes/no predicate with one flip point</button>
+  <button class="opt" data-correct="false" data-fb="Random access helps but isn't sufficient; you need the monotone structure.">The data must be in an array</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. In the same-direction two-pointer "in-place keep", what does the slow pointer mark?</div>
+  <button class="opt" data-correct="true" data-fb="Yes — the slow pointer marks where the next KEPT element gets written while fast scans ahead.">Where the next kept element should be written</button>
+  <button class="opt" data-correct="false" data-fb="That's the fast pointer's job; it reads every element.">The element currently being read</button>
+  <button class="opt" data-correct="false" data-fb="Neither pointer tracks the end; the loop range does.">The end of the array</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving quickselect from "sorting is overkill"</h2>
+
+<p>Find the k-th smallest element. <strong>Brute force:</strong> sort the whole array, return index <code>k-1</code>. O(n log n). Where's the waste? Sorting painstakingly orders <em>all</em> n elements, but you only care about <em>one</em> position. Every comparison that orders elements far from rank k is wasted effort.</p>
+
+<p>Recall the one piece of quicksort that does real work: the <strong>partition</strong>. Pick a pivot, rearrange so everything smaller sits left of it and everything larger sits right. After partitioning, the pivot lands in its <em>final sorted position</em> — say index <code>p</code> — even though neither side is sorted yet.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p>After one partition, the pivot is at its true sorted index <code>p</code>. Now compare <code>p</code> to your target <code>k-1</code>:</p>
+  <ul>
+    <li><code>p == k-1</code> → the pivot <em>is</em> the k-th element. Done.</li>
+    <li><code>p &gt; k-1</code> → the answer is somewhere to the <em>left</em>; the entire right side is irrelevant. Recurse left only.</li>
+    <li><code>p &lt; k-1</code> → recurse right only.</li>
+  </ul>
+  <p>Quicksort recurses into <em>both</em> sides (that's why it's O(n log n)). But for a single rank you only ever need <em>one</em> side — the other provably can't hold rank k. Throwing away a side each step gives the geometric series n + n/2 + n/4 + … = <strong>O(n) average</strong>. That "recurse into one side only" IS quickselect. It's quicksort with the useless half deleted.</p>
+</div>
+
+<pre><code>import random
+def quickselect(a, k):          # returns the k-th SMALLEST (1-indexed)
+    target = k - 1              # 0-indexed rank we want in sorted order
+    lo, hi = 0, len(a) - 1
+    while lo &lt;= hi:
+        p = partition(a, lo, hi)
+        if p == target:
+            return a[p]
+        elif p &lt; target:
+            lo = p + 1          # answer is to the right; drop the left side
+        else:
+            hi = p - 1          # answer is to the left; drop the right side
+
+def partition(a, lo, hi):
+    # random pivot avoids O(n^2) on sorted/adversarial input
+    r = random.randint(lo, hi)
+    a[r], a[hi] = a[hi], a[r]
+    pivot = a[hi]
+    i = lo                      # i = boundary: a[lo..i-1] are &lt; pivot
+    for j in range(lo, hi):
+        if a[j] &lt; pivot:
+            a[i], a[j] = a[j], a[i]
+            i += 1
+    a[i], a[hi] = a[hi], a[i]   # place pivot at its final index i
+    return i</code></pre>
+
+<p>Written as a loop rather than recursion, so there's no extra stack — the "recurse one side" becomes "move one boundary." Same idea.</p>
+
+<h3>Why random pivots matter</h3>
+<p>If you always pick the last element as pivot and the array is already sorted, every partition peels off just one element — n + (n−1) + … = O(n²). Choosing the pivot <em>randomly</em> makes that worst case astronomically unlikely, which is why the average is O(n) and quickselect is trusted in practice. This is the same reason randomized quicksort is the default sort in many libraries.</p>
+
+<!-- ============ WHEN ============ -->
+<h2>When to reach for quickselect, and when not to</h2>
+<p>You want quickselect whenever the problem asks for <strong>the k-th largest/smallest value, or the top/bottom k elements, of a static array you're allowed to rearrange</strong>, and you only need the answer once. It beats a heap (O(n log k)) and a full sort (O(n log n)) because it does O(n) expected work and never orders the parts that don't matter. You should <em>not</em> use it when the data arrives as a stream and you can't hold or reshuffle it all (a heap is right there), when you need the k elements in sorted order rather than just identified (quickselect leaves each side unsorted), or when a guaranteed worst case matters more than average speed (its worst case is O(n²); a heap's O(n log k) is guaranteed).</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice problems — solve these yourself</h2>
+<p>Problems only. Ask me if stuck. The core ones are the k-th / top-k family; the rest exercise partitioning.</p>
+<ol>
+  <li><strong>Kth Largest Element in an Array</strong> (Medium) — <a href="https://leetcode.com/problems/kth-largest-element-in-an-array/">link</a></li>
+  <li><strong>Top K Frequent Elements</strong> (Medium) — <a href="https://leetcode.com/problems/top-k-frequent-elements/">link</a></li>
+  <li><strong>K Closest Points to Origin</strong> (Medium) — <a href="https://leetcode.com/problems/k-closest-points-to-origin/">link</a></li>
+  <li><strong>Sort Colors</strong> (Medium) — <a href="https://leetcode.com/problems/sort-colors/">link</a></li>
+  <li><strong>Kth Largest Element in a Stream</strong> (Easy) — <a href="https://leetcode.com/problems/kth-largest-element-in-a-stream/">link</a></li>
+  <li><strong>Wiggle Sort II</strong> (Medium) — <a href="https://leetcode.com/problems/wiggle-sort-ii/">link</a></li>
+  <li><strong>Find K Closest Elements</strong> (Medium) — <a href="https://leetcode.com/problems/find-k-closest-elements/">link</a></li>
+  <li><strong>Third Maximum Number</strong> (Easy) — <a href="https://leetcode.com/problems/third-maximum-number/">link</a></li>
+  <li><strong>Kth Smallest Element in a Sorted Matrix</strong> (Medium) — <a href="https://leetcode.com/problems/kth-smallest-element-in-a-sorted-matrix/">link</a></li>
+  <li><strong>Partition List</strong> (Medium) — <a href="https://leetcode.com/problems/partition-list/">link</a></li>
+  <li><strong>Top K Frequent Words</strong> (Medium) — <a href="https://leetcode.com/problems/top-k-frequent-words/">link</a></li>
+  <li><strong>Maximum Gap</strong> (Medium) — <a href="https://leetcode.com/problems/maximum-gap/">link</a></li>
+</ol>
+
+<div class="callout trap">
+  <span class="label">Trap — sharpen your discrimination</span>
+  <p><strong>Kth Largest Element in a Stream</strong> (Easy) sounds like quickselect — "k-th largest" — but the data <em>streams in</em> and you must answer repeatedly as new values arrive. Quickselect needs the whole array present and reshuffles it; it can't maintain an answer across insertions. The right tool is a size-k min-heap. Lesson: the "k-th largest" keyword alone doesn't pick quickselect — the <em>static, all-present, one-shot</em> precondition does. On a stream, go heap.</p>
+</div>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a harder problem is built from this pattern</h2>
+<p><strong>Wiggle Sort II</strong> (Medium, but famously hard) — <a href="https://leetcode.com/problems/wiggle-sort-ii/">link</a> — composes <em>quickselect</em> (this lesson) with the <em>Dutch-national-flag three-way partition</em> from the same-direction two-pointer idea (Lesson 2 / Lesson 7 territory).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p>Rearrange so <code>nums[0] &lt; nums[1] &gt; nums[2] &lt; nums[3] …</code>. It decomposes into two pieces you own:</p>
+  <p><strong>Piece 1 — quickselect to find the median:</strong> the wiggle is only possible if you split the values around the median. Quickselect finds the median value in O(n) without sorting — exactly this lesson.</p>
+  <p><strong>Piece 2 — three-way partition around the median (Dutch national flag):</strong> using the same-direction pointer idea, partition into "greater than median", "equal", "less than median" in one pass. Then place the larger half and smaller half into interleaved index positions (odd indices from the top down, even indices from the bottom down) so equal values never sit adjacent.</p>
+  <p>The result = (quickselect to locate the median) + (three-way partition to arrange around it). Both are things you've derived. <strong>The scary problem is two familiar pieces in a trench coat.</strong></p>
+</details>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Quickselect</h2>
+<p>The compressed version. Re-reading this should reload the whole pattern.</p>
+
+<h3>When to use it, and why</h3>
+<ul>
+  <li><strong>k-th largest/smallest or top/bottom k of a static, rearrangeable array, answered once.</strong> Partition puts a pivot at its final sorted index; you then recurse into only the side that can contain rank k, discarding the other. That one-sided recursion gives O(n) average, beating both a full sort (O(n log n)) and a heap (O(n log k)).</li>
+</ul>
+
+<h3>The one-line reason it works</h3>
+<p>After a partition the pivot sits at its true sorted position, so comparing that position to k tells you which single side holds the answer — throwing away the other side each step gives the geometric n + n/2 + … = O(n) average.</p>
+
+<h3>How to derive it cold</h3>
+<p>Notice that sorting orders all n elements when you only need one position. Keep just quicksort's partition, and after each partition recurse into the one side that could contain rank k. That's quicksort with the useless half deleted.</p>
+
+<h3>Discrimination test (when it does NOT apply)</h3>
+<p>Streaming data you can't hold or reshuffle → use a size-k heap. Need the k elements in sorted order → quickselect leaves sides unsorted. Guaranteed worst case required → quickselect is O(n²) worst; a heap is a guaranteed O(n log k). Always use a <em>random</em> pivot, or sorted/adversarial input degrades it to O(n²).</p>
+
+<h3>Template (Python)</h3>
+<pre><code>import random
+def quickselect(a, k):              # k-th smallest, 1-indexed
+    target, lo, hi = k - 1, 0, len(a) - 1
+    while lo &lt;= hi:
+        p = partition(a, lo, hi)    # pivot lands at final index p
+        if p == target: return a[p]
+        elif p &lt; target: lo = p + 1 # drop left side
+        else:            hi = p - 1 # drop right side
+
+def partition(a, lo, hi):
+    r = random.randint(lo, hi); a[r], a[hi] = a[hi], a[r]
+    pivot, i = a[hi], lo
+    for j in range(lo, hi):
+        if a[j] &lt; pivot:
+            a[i], a[j] = a[j], a[i]; i += 1
+    a[i], a[hi] = a[hi], a[i]
+    return i</code></pre>
+
+<h3>Complexity and classic problems</h3>
+<p>Time O(n) average, O(n²) worst; space O(1) with the loop form. Practice set: Kth Largest Element in an Array (M), K Closest Points to Origin (M), Top K Frequent Elements (M), Wiggle Sort II (M).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> The usual snags are the index bookkeeping in partition (the <code>i</code> boundary) and the largest-vs-smallest rank conversion. Bring your partition and we'll dry-run it on a tiny array.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> the CLRS chapter on "Medians and Order Statistics" is the canonical derivation of expected-linear selection; for a lighter read, the <a href="https://en.wikipedia.org/wiki/Quickselect">Quickselect Wikipedia article</a> walks the partition-and-recurse-one-side logic clearly.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 11: Sorting as a Tool</span>
+  <span>Next: Lesson 13 — Bit Manipulation →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

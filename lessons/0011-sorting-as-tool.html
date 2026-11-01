@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 11 — Sorting as a Tool</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 2 · Search, sort &amp; the answer space</p>
+<span class="lesson-no">Lesson 11 of the course</span>
+<h1>Sorting as a Tool — the cheapest way to create structure</h1>
+
+<p>You know how to sort. What interviews test is knowing <em>when a problem becomes easy the instant you sort it</em>, and how to bend the sort with a custom comparator. Sorting is rarely the answer by itself — it's the O(n log n) move that creates the ordering some <em>other</em> pattern needs. By the end you'll recognize that setup move cold.</p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Warm-up — recall earlier patterns (no peeking)</h2>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. "Minimize the largest part-sum when splitting an array into m pieces." Which pattern?</div>
+  <button class="opt" data-correct="true" data-fb="Yes — 'minimize the largest' with a monotone feasibility check is binary search on the answer.">Binary search on the answer</button>
+  <button class="opt" data-correct="false" data-fb="A window gives contiguous subarrays but can't choose cut points to optimize a max.">Sliding window</button>
+  <button class="opt" data-correct="false" data-fb="Two pointers needs a directional signal from a pair; this searches a value.">Two pointers</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. Why do overlapping-interval problems almost always start with a sort?</div>
+  <button class="opt" data-correct="false" data-fb="Sorting doesn't merge anything by itself; it just orders the intervals.">Because sorting merges the intervals automatically</button>
+  <button class="opt" data-correct="true" data-fb="Right — once sorted by start, any overlap must be with the immediately preceding interval, so a single pass detects them all.">It makes each interval only need comparing to the previous one</button>
+  <button class="opt" data-correct="false" data-fb="Interval counts don't change with order; sorting changes the ease of detection, not the answer.">Because it removes duplicate intervals</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving the idea — sorting as a precondition factory</h2>
+
+<p>Take a concrete problem: given meeting intervals, can one person attend all of them (no two overlap)? <strong>Brute force:</strong> compare every pair of intervals for overlap → O(n²). Where's the waste? Most of those pairs are obviously disjoint, and you keep re-checking far-apart intervals that could never clash.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>The insight:</strong> if you first sort the intervals by start time, then an interval can only overlap the one <em>immediately before it</em>. Why? Because everything earlier starts even sooner and, if it didn't already overlap, ended before this one began. So a single O(n) sweep comparing each interval to its predecessor finds any conflict. The O(n²) pair comparison collapses because the sort <strong>created an ordering that made all but one comparison unnecessary.</strong></p>
+</div>
+
+<p>That is the whole mental model for this lesson: <strong>sorting doesn't solve the problem — it manufactures a structure (adjacency, monotonicity, grouping) that a cheap linear pass can then exploit.</strong> When you're staring at an O(n²) brute force, one of the first questions to ask is: "if this input were sorted by the right key, would far-apart elements stop mattering?" If yes, sort and sweep.</p>
+
+<!-- ============ CUSTOM COMPARATOR ============ -->
+<h2>Bending the sort — custom comparators</h2>
+
+<p>The default order is numeric or lexicographic. Many problems need a <em>different</em> order, and choosing that order is the entire solution. The classic is "arrange numbers to form the largest possible concatenation": the right order isn't "bigger number first" — <code>[9, 30]</code> should become <code>"930"</code>, but <code>[3, 30]</code> should become <code>"330"</code>, not <code>"303"</code>. The correct rule is: <code>a</code> comes before <code>b</code> if the string <code>a+b</code> is larger than <code>b+a</code>. You derive the comparator by asking "for just these two, which ordering wins?" and trusting that a consistent pairwise rule produces a correct global order.</p>
+
+<pre><code>from functools import cmp_to_key
+
+def largestNumber(nums):
+    strs = list(map(str, nums))
+    # pairwise rule: whichever concatenation is bigger decides the order
+    def compare(a, b):
+        if a + b &gt; b + a:   return -1   # a should come first
+        if a + b &lt; b + a:   return 1    # b should come first
+        return 0
+    strs.sort(key=cmp_to_key(compare))
+    out = "".join(strs)
+    return "0" if out[0] == "0" else out   # all-zeros edge case</code></pre>
+
+<p>When the order is a simple function of each element, use a <strong>key</strong> instead of a comparator — <code>key</code> is faster and cleaner because it computes one sort-value per element. Reach for a full comparator (<code>cmp_to_key</code>) only when the order depends on <em>comparing two elements together</em>, as above, where no single per-element key captures it.</p>
+
+<h3>When sorting is the setup for greedy</h3>
+<p>A huge family of greedy problems becomes correct only after sorting by the right key: schedule the most meetings by sorting on <em>end</em> time, assign cookies by sorting both children and cookies, minimize waiting time by sorting ascending. The pattern is: sort so that the locally-best choice at each step is also globally safe. You will usually be able to argue "if I always take the item with the smallest/earliest X, I never regret it" — and that argument tells you which key to sort on.</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice problems — solve these yourself</h2>
+<p>Problems only. Ask me if stuck. For each, the real question is "what key do I sort on, and what cheap pass runs after?"</p>
+<ol>
+  <li><strong>Merge Sorted Array</strong> (Easy) — <a href="https://leetcode.com/problems/merge-sorted-array/">link</a></li>
+  <li><strong>Height Checker</strong> (Easy) — <a href="https://leetcode.com/problems/height-checker/">link</a></li>
+  <li><strong>Assign Cookies</strong> (Easy) — <a href="https://leetcode.com/problems/assign-cookies/">link</a></li>
+  <li><strong>Sort Colors</strong> (Medium) — <a href="https://leetcode.com/problems/sort-colors/">link</a></li>
+  <li><strong>Largest Number</strong> (Medium) — <a href="https://leetcode.com/problems/largest-number/">link</a></li>
+  <li><strong>Sort Characters By Frequency</strong> (Medium) — <a href="https://leetcode.com/problems/sort-characters-by-frequency/">link</a></li>
+  <li><strong>Car Pooling</strong> (Medium) — <a href="https://leetcode.com/problems/car-pooling/">link</a></li>
+  <li><strong>Non-overlapping Intervals</strong> (Medium) — <a href="https://leetcode.com/problems/non-overlapping-intervals/">link</a></li>
+  <li><strong>Queue Reconstruction by Height</strong> (Medium) — <a href="https://leetcode.com/problems/queue-reconstruction-by-height/">link</a></li>
+  <li><strong>Minimum Number of Arrows to Burst Balloons</strong> (Medium) — <a href="https://leetcode.com/problems/minimum-number-of-arrows-to-burst-balloons/">link</a></li>
+  <li><strong>Maximum Gap</strong> (Medium) — <a href="https://leetcode.com/problems/maximum-gap/">link</a></li>
+  <li><strong>Create Maximum Number</strong> (Hard) — <a href="https://leetcode.com/problems/create-maximum-number/">link</a></li>
+  <li><strong>Maximum Number of Events That Can Be Attended II</strong> (Hard) — <a href="https://leetcode.com/problems/maximum-number-of-events-that-can-be-attended-ii/">link</a></li>
+</ol>
+
+<div class="callout trap">
+  <span class="label">Trap — sharpen your discrimination</span>
+  <p><strong>Maximum Gap</strong> (Medium) asks for the largest gap between consecutive values after sorting. The obvious move is sort then scan — correct, but O(n log n), and the problem secretly wants O(n). Here sorting is a trap: the intended solution is bucket/radix-style, using the pigeonhole principle to avoid a comparison sort entirely. Lesson: "sort then scan" is the right <em>first</em> idea, but when the constraints demand linear time, sorting is exactly what you must give up.</p>
+</div>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>Create Maximum Number</strong> (Hard) — <a href="https://leetcode.com/problems/create-maximum-number/">link</a> — composes a <em>custom-order greedy "max subsequence"</em> with the same <em>pairwise concatenation comparison</em> you used for Largest Number (this lesson), plus a <em>two-pointer merge</em> (Lesson 2).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p>Pick <code>k</code> digits total from two arrays, preserving each array's relative order, to form the largest number. It decomposes into three pieces you already own:</p>
+  <p><strong>Piece 1 — pick the best <code>i</code> digits from one array (monotonic-stack-free greedy):</strong> to keep the largest <code>i</code>-length subsequence in order, scan left to right and greedily drop a smaller leading digit when a bigger one arrives and you still have room. This is the "keep it as large as possible, position by position" greedy — a local-choice argument exactly like the sorting-for-greedy reasoning above.</p>
+  <p><strong>Piece 2 — merge two candidate subsequences into the largest interleaving (two-pointer merge):</strong> at each step take from whichever array is "lexicographically larger from here on", compared with the same <em>a+b vs b+a</em> style pairwise rule from Largest Number. This is a two-pointer merge (Lesson 2) driven by a custom comparison (this lesson).</p>
+  <p><strong>Piece 3 — try every split:</strong> for each way to take <code>i</code> digits from array one and <code>k−i</code> from array two, build and merge, keep the best.</p>
+  <p>The Hard = (custom-order greedy subsequence) + (pairwise-concatenation comparison from Largest Number) + (two-pointer merge). Every piece came from a lesson you've done. <strong>Name the pieces and it's assembly, not invention.</strong></p>
+</details>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Sorting as a Tool</h2>
+<p>The compressed version. Re-reading this should reload the whole pattern.</p>
+
+<h3>When to use it, and why</h3>
+<ul>
+  <li><strong>As a precondition factory.</strong> When a brute force is O(n²) because far-apart elements keep getting compared, sort by the right key so that only <em>adjacent</em> elements matter, then do a single linear sweep. Overlapping intervals, closest pairs, and duplicate-grouping all work this way.</li>
+  <li><strong>As the setup for greedy.</strong> Many greedy algorithms are only correct after sorting on a specific key (end time, ratio, height), chosen so the locally-best pick is always globally safe.</li>
+  <li><strong>With a custom comparator.</strong> When the needed order isn't numeric/lexicographic, define the order by asking "between just these two, which comes first?" — e.g. <code>a+b &gt; b+a</code> for largest-concatenation.</li>
+</ul>
+
+<h3>The one-line reason it works</h3>
+<p>Sorting spends O(n log n) once to create an ordering (adjacency, monotonicity, grouping) that lets a cheap O(n) pass replace an O(n²) all-pairs comparison.</p>
+
+<h3>How to derive it cold</h3>
+<p>Facing an O(n²) brute force, ask: "if the input were sorted by some key, would far-apart elements stop mattering, leaving only neighbours to compare?" If yes, sort on that key and sweep. For ordering problems, derive the comparator from the two-element case and trust a consistent pairwise rule to give a correct whole.</p>
+
+<h3>Discrimination test (when it does NOT apply)</h3>
+<p>If the problem needs strictly linear time (Maximum Gap), or if sorting would destroy information you must keep (original indices, as in the unsorted Two Sum), don't sort — reach for counting/radix or a hashmap instead. "Sort then scan" is a strong first idea, not a law.</p>
+
+<h3>Template (Python)</h3>
+<pre><code># key-based sort (order is a function of each element)
+items.sort(key=lambda x: (x.end, x.start))
+
+# comparator-based sort (order depends on comparing two elements)
+from functools import cmp_to_key
+def cmp(a, b):
+    if a + b &gt; b + a: return -1
+    if a + b &lt; b + a: return 1
+    return 0
+strs.sort(key=cmp_to_key(cmp))
+
+# sort-then-sweep skeleton
+items.sort(key=lambda x: x.start)
+for cur in items[1:]:
+    # compare cur only to the running/previous item
+    ...</code></pre>
+
+<h3>Complexity and classic problems</h3>
+<p>Sort O(n log n), sweep O(n). Practice set: Assign Cookies (E), Sort Colors (M), Largest Number (M), Non-overlapping Intervals (M), Minimum Arrows to Burst Balloons (M), Create Maximum Number (H).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> The tricky part is usually proving a greedy sort key is correct, or writing a comparator that's consistent. Bring the specific key you chose and we'll stress-test it on a counterexample.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> Python's own <a href="https://docs.python.org/3/howto/sorting.html">Sorting HOW TO</a> is the definitive reference for <code>key</code> vs <code>cmp_to_key</code> and stable sorts. Read it once, then the comparator problems feel mechanical.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 10: Binary Search</span>
+  <span>Next: Lesson 12 — Quickselect →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

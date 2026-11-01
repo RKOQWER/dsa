@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 28 — Knapsack Family</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 5 · Dynamic Programming</p>
+<span class="lesson-no">Lesson 28 of the course</span>
+<h1>The Knapsack Family — "take it or leave it" over a capacity</h1>
+
+<p>A huge slice of DP interview problems is secretly one template: you have a collection of items and a budget (capacity, target sum, amount), and at each item you choose to include it or not. 0/1 knapsack, subset-sum, partition, and coin change are all the same recurrence with small variations. Learn the one shape and you recognize the whole family instantly.</p>
+
+<!-- SPACED RETRIEVAL -->
+<h2>Warm-up — recall (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. In a 1D DP (Lesson 27), why could House Robber run in O(1) space?</div>
+  <button class="opt" data-correct="true" data-fb="Right — each state depended on only the last two, so you keep two rolling variables and discard the rest of the table.">Each state depended on only a bounded number of previous states</button>
+  <button class="opt" data-correct="false" data-fb="Sorting wasn't involved in House Robber.">Because the input was sorted</button>
+  <button class="opt" data-correct="false" data-fb="Greedy would be wrong here; it was DP that made it O(1), via rolling variables.">Because a greedy choice was always optimal</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. Backtracking (Lesson 15) could also enumerate every subset. Why prefer DP for subset-sum?</div>
+  <button class="opt" data-correct="false" data-fb="Both use recursion; that's not the reason.">DP avoids recursion entirely</button>
+  <button class="opt" data-correct="true" data-fb="Yes — many subsets reach the same (index, remaining-capacity) state, so caching that state collapses the 2^n tree to a polynomial table.">Different subsets reach the same (index, remaining) state, so caching reuses work</button>
+  <button class="opt" data-correct="false" data-fb="DP doesn't need the input sorted for subset-sum.">DP requires sorted input, which is faster</button>
+</div>
+
+<!-- DERIVATION -->
+<h2>Deriving 0/1 knapsack</h2>
+<p>Items each have a weight and a value; a bag holds total weight ≤ W; maximize the value you carry. Each item is used at most once (that's the "0/1").</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Find the choice.</strong> Consider item <code>i</code>. Two options, and only two: put it in the bag or leave it out.</p>
+  <ul>
+    <li>Leave it out: you solve the same problem on the remaining items <code>i+1…</code> with the same capacity.</li>
+    <li>Take it (only if it fits): you gain <code>value[i]</code>, and solve the remaining items with capacity reduced by <code>weight[i]</code>.</li>
+  </ul>
+  <p>The best is the max of the two. <strong>The state is therefore (which item we're deciding, how much capacity is left)</strong> — two numbers, because both the position AND the remaining budget affect the answer.</p>
+  <pre><code>dp(i, cap) = max(
+    dp(i+1, cap),                                   # leave item i
+    value[i] + dp(i+1, cap - weight[i])             # take it, if weight[i] <= cap
+)</code></pre>
+  <p><strong>Spot the overlap:</strong> many different take/leave sequences arrive at the same <code>(i, cap)</code> — that's why caching on the pair <code>(i, cap)</code> turns the 2ⁿ decision tree into an O(n·W) table.</p>
+</div>
+
+<p><strong>The key realization that defines the whole family:</strong> the capacity has to be <em>part of the state</em>. In 1D DP the state was a single index; here the budget you have left changes what's optimal, so it joins the index. Every member of this family is "index + remaining budget," where the budget is a weight, a target sum, or an amount of money.</p>
+
+<h3>The variations, each as a one-line change to the same recurrence</h3>
+<ul>
+  <li><strong>Subset-sum / Partition Equal Subset Sum:</strong> there are no values, only weights, and you ask "can I hit exactly capacity?" So the combine is <code>or</code> instead of <code>max</code>, and the base case is "capacity reached exactly → True." Partition is just subset-sum with target = totalSum / 2.</li>
+  <li><strong>Unbounded knapsack / Coin Change:</strong> an item may be used any number of times. The only change is that after taking item <code>i</code> you may take it <em>again</em> — so the "take" branch recurses on <code>dp(i, cap - weight[i])</code> (stay on the same item) rather than <code>dp(i+1, …)</code>. Coin Change (min coins) uses <code>min</code> + 1; Coin Change 2 (count ways) uses <code>+</code>.</li>
+  <li><strong>Count of subsets with a given sum:</strong> identical to subset-sum but combine with <code>+</code> to count rather than <code>or</code> to test existence.</li>
+</ul>
+
+<!-- TEMPLATE -->
+<h2>The template</h2>
+<pre><code># 0/1 knapsack, top-down
+from functools import cache
+def knapsack(weight, value, W):
+    n = len(weight)
+    @cache
+    def dp(i, cap):
+        if i == n: return 0
+        best = dp(i+1, cap)                              # leave
+        if weight[i] <= cap:
+            best = max(best, value[i] + dp(i+1, cap - weight[i]))  # take
+        return best
+    return dp(0, W)
+
+# Coin Change (min coins), unbounded -> note "stay on i" in the take branch
+def coinChange(coins, amount):
+    @cache
+    def dp(i, rem):
+        if rem == 0: return 0
+        if i == len(coins) or rem < 0: return float('inf')
+        return min(dp(i+1, rem),                 # skip this coin type
+                   1 + dp(i, rem - coins[i]))    # use it again (unbounded)
+    ans = dp(0, amount)
+    return ans if ans != float('inf') else -1
+</code></pre>
+
+<!-- PRACTICE -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only. For each, identify the budget that must join the index in the state.</p>
+<ol>
+  <li><strong>Coin Change</strong> (Medium) — <a href="https://leetcode.com/problems/coin-change/">link</a></li>
+  <li><strong>Coin Change II</strong> (Medium) — <a href="https://leetcode.com/problems/coin-change-ii/">link</a></li>
+  <li><strong>Partition Equal Subset Sum</strong> (Medium) — <a href="https://leetcode.com/problems/partition-equal-subset-sum/">link</a></li>
+  <li><strong>Target Sum</strong> (Medium) — <a href="https://leetcode.com/problems/target-sum/">link</a></li>
+  <li><strong>Ones and Zeroes</strong> (Medium) — <a href="https://leetcode.com/problems/ones-and-zeroes/">link</a></li>
+  <li><strong>Combination Sum IV</strong> (Medium) — <a href="https://leetcode.com/problems/combination-sum-iv/">link</a></li>
+  <li><strong>Last Stone Weight II</strong> (Medium) — <a href="https://leetcode.com/problems/last-stone-weight-ii/">link</a></li>
+  <li><strong>Perfect Squares</strong> (Medium) — <a href="https://leetcode.com/problems/perfect-squares/">link</a></li>
+  <li><strong>Minimum Cost For Tickets</strong> (Medium) — <a href="https://leetcode.com/problems/minimum-cost-for-tickets/">link</a></li>
+  <li><strong>Number of Dice Rolls With Target Sum</strong> (Medium) — <a href="https://leetcode.com/problems/number-of-dice-rolls-with-target-sum/">link</a></li>
+  <li><strong>Profitable Schemes</strong> (Hard) — <a href="https://leetcode.com/problems/profitable-schemes/">link</a></li>
+  <li><strong>Partition Array for Maximum Sum</strong> (Medium) — <a href="https://leetcode.com/problems/partition-array-for-maximum-sum/">link</a></li>
+</ol>
+
+<!-- COMPOSITION -->
+<h2>Composition — a Hard built from knapsack + earlier patterns</h2>
+<p><strong>Profitable Schemes</strong> (Hard) — <a href="https://leetcode.com/problems/profitable-schemes/">link</a>. Composes the knapsack recurrence with a <strong>two-budget state</strong> and the counting-combine (<code>+</code>) idea from DP recognition (Lesson 26).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The problem:</strong> each "crime" uses some members and yields some profit; count the schemes (subsets of crimes) using at most <code>n</code> members and producing at least <code>minProfit</code>.</p>
+  <p><strong>Pattern A — knapsack take/leave:</strong> for each crime, include it or not — the exact 0/1 shape. The twist is there are <em>two</em> budgets: members used (a normal capacity you cap at n) and profit accumulated.</p>
+  <p><strong>Pattern B — profit as a clamped second dimension:</strong> profit is a lower bound ("at least minProfit"), not an upper bound. The trick is to clamp profit at minProfit in the state — once you've met the threshold, extra profit doesn't change which schemes count, so <code>min(profit, minProfit)</code> keeps the state space small. The state becomes (crime index, members left, profit-so-far clamped).</p>
+  <p><strong>Pattern C — counting combine (Lesson 26):</strong> you want the number of schemes, so combine the take/leave branches with <code>+</code>, not <code>max</code>.</p>
+  <p>The Hard = (knapsack take/leave) + (a clamped second budget) + (count with +). The only genuinely new idea is clamping a lower-bound dimension — everything else is this lesson's template.</p>
+</details>
+
+<h2>Your reps</h2>
+<ol>
+  <li>Prove to yourself that Partition Equal Subset Sum is literally subset-sum with target = total/2 (and impossible if total is odd).</li>
+  <li>Compare Coin Change (unbounded, min) with a 0/1 version and see exactly which index the "take" branch recurses on — that one character is the whole difference.</li>
+</ol>
+
+<!-- REFERENCE -->
+<h2 id="refcard">Reference card — Knapsack family</h2>
+<h3>When, and why</h3>
+<p>Use it when you have items and a budget (weight capacity, target sum, amount of money) and at each item you choose include-or-exclude. Because many choice sequences land on the same (index, remaining-budget) state, caching that pair turns the 2ⁿ decision tree into an O(items × budget) table. The defining feature is that <strong>the remaining budget must be part of the state</strong>.</p>
+<h3>The recurrence and its knobs</h3>
+<ul>
+  <li><strong>0/1 (each item once):</strong> take-branch recurses on <code>i+1</code>.</li>
+  <li><strong>Unbounded (reuse allowed):</strong> take-branch recurses on <code>i</code> (stay).</li>
+  <li><strong>Best value:</strong> combine with max/min. <strong>Count ways:</strong> combine with +. <strong>Feasible?:</strong> combine with or.</li>
+</ul>
+<h3>Template</h3>
+<pre><code>@cache
+def dp(i, cap):
+    if i == n: return 0            # or True/0 depending on variant
+    best = dp(i+1, cap)            # leave
+    if fits(i, cap):
+        best = combine(best, gain(i) + dp(next_i, cap - cost(i)))  # take
+    return best</code></pre>
+<h3>Classic problems</h3>
+<p>Coin Change (M), Coin Change II (M), Partition Equal Subset Sum (M), Target Sum (M), Ones and Zeroes (M), Profitable Schemes (H).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If you can't tell 0/1 from unbounded on a problem, tell me whether an item can be reused — that single answer decides which index the take-branch recurses on.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> Aditya Verma's "Knapsack" DP series is the canonical walkthrough of the whole family; for a concise written version see <a href="https://neetcode.io/courses">neetcode.io/courses</a> (1-D / 2-D DP).
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 27: 1D DP</span>
+  <span>Next: Lesson 29 — Grid DP →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

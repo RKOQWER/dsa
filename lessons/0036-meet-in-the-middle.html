@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 36 — Meet in the Middle</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 7 · Advanced composition</p>
+<span class="lesson-no">Lesson 36 of the course — advanced technique</span>
+<h1>Meet in the Middle — when the exponential is too big for brute force but the input is tiny</h1>
+
+<p>Sometimes no polynomial trick exists: the problem genuinely asks you to search over subsets, and a DP on the sum would need a table too wide to build (sums up to 10<sup>9</sup>, not a few thousand). You're staring at 2<sup>40</sup> subsets, which is a trillion — too many to enumerate. "Meet in the middle" is the escape hatch: split the input into two halves, brute-force each half independently (2<sup>n/2</sup> each, which is only a million when n = 40), then <em>combine the two halves cleverly</em> instead of pairing every left subset with every right subset. The signature tell is a small n (around 30-40) with values far too large for a sum-indexed DP.</p>
+
+<!-- SPACED RETRIEVAL -->
+<h2>Warm-up — recall (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. In <strong>bitmask subset enumeration</strong> (Lesson 13), how do you iterate over every subset of an n-element list, and what is the cost?</div>
+  <button class="opt" data-correct="true" data-fb="Right — each integer mask from 0 to 2^n − 1 encodes one subset (bit i set = element i chosen); that's 2^n masks, and reading the chosen elements of each is O(n), so O(n·2^n) total. This is exactly the per-half work in meet-in-the-middle.">Loop masks 0..2<sup>n</sup>−1; bit i of the mask means element i is included — O(n·2<sup>n</sup>)</button>
+  <button class="opt" data-correct="false" data-fb="Recursion also enumerates subsets, but the question is about the bitmask technique specifically; its cost is still 2^n subsets, not n².">Two nested loops over indices — O(n<sup>2</sup>)</button>
+  <button class="opt" data-correct="false" data-fb="A heap gives you extremes of a changing set, not an enumeration of all subsets.">Push every element into a heap and pop — O(n log n)</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. You have a <strong>sorted</strong> array and, for each query value q, want the element closest to q. Which Lesson-10 tool finds that in O(log n) per query, and what do you compare?</div>
+  <button class="opt" data-correct="true" data-fb="Right — binary search for the insertion point of q, then the closest value is one of the two neighbors straddling that point (the element just below and just at/above). This 'closest to a target in a sorted array' move is the combine step in meet-in-the-middle.">Binary search for q's insertion point, then compare the neighbor just below and the one just at/above</button>
+  <button class="opt" data-correct="false" data-fb="Linear scan is O(n) per query — the whole point of binary search on a sorted array is to avoid that.">Scan left to right and track the running minimum distance — O(n)</button>
+  <button class="opt" data-correct="false" data-fb="Two pointers from both ends solves pair-sum problems, but 'closest single element to q' in a sorted array is a binary-search job.">Two pointers from both ends converging</button>
+</div>
+
+<!-- DERIVATION -->
+<h2>Deriving meet in the middle via Closest Subsequence Sum</h2>
+<p>Take <strong>Closest Subsequence Sum</strong> (LeetCode 1755): given <code>nums</code> (length n ≤ 40) and a <code>goal</code>, choose any subsequence so that its sum is as close to <code>goal</code> as possible; return the minimum possible <code>|sum − goal|</code>. Note the values can be huge (up to 10<sup>9</sup> in magnitude).</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Brute force:</strong> enumerate all 2<sup>n</sup> subsets, compute each sum, track the closest to <code>goal</code>. With n = 40 that is 2<sup>40</sup> ≈ 10<sup>12</sup> subsets — hopeless.</p>
+  <p><strong>Why the usual DP escape fails.</strong> Subset-sum problems (Lesson 28) usually become a DP indexed by the running sum. But here sums range over roughly ±4·10<sup>10</sup>; you cannot build a table that wide. The DP trick is dead because the <em>value space</em>, not the item count, is the enemy. So we're stuck with an exponential in n — the question becomes: can we make the exponent smaller?</p>
+  <p><strong>Spot the structure.</strong> 2<sup>40</sup> is impossible, but 2<sup>20</sup> ≈ 10<sup>6</sup> is trivial. What if we split the array into two halves of 20 each? Every subset of the whole array is exactly "some subset of the left half" plus "some subset of the right half." So enumerate <strong>all 2<sup>20</sup> left-subset sums</strong> into a list <code>L</code>, and <strong>all 2<sup>20</sup> right-subset sums</strong> into a list <code>R</code>. Each list is only a million entries.</p>
+  <p><strong>The naive combine is still 2<sup>n</sup>.</strong> If you pair every left sum with every right sum you're back to 10<sup>6</sup> × 10<sup>6</sup> = 10<sup>12</sup>. The whole win would evaporate. So the combine step must be smarter than a double loop.</p>
+  <p><strong>The insight (= the pattern):</strong> fix a left sum <code>a</code>. The best total using it is <code>a + b</code> where <code>b</code> is a right sum, and we want <code>a + b</code> as close to <code>goal</code> as possible — i.e. we want the right sum <code>b</code> closest to <code>goal − a</code>. If <code>R</code> is <strong>sorted</strong>, "the value closest to <code>goal − a</code>" is one binary search (Lesson 10's closest-element move). So: sort <code>R</code> once (O(2<sup>n/2</sup> log), then for each of the 2<sup>n/2</sup> left sums do one O(log) binary search. Total O(2<sup>n/2</sup> · n) — a million log-searches, instantly feasible. The exponent went from n to n/2; that halving is the entire pattern.</p>
+  <pre><code>from bisect import bisect_left
+
+def subset_sums(arr):
+    sums = [0]
+    for x in arr:                      # each element doubles the set of reachable sums
+        sums += [s + x for s in sums]  # 2^len(arr) sums total
+    return sums
+
+def min_abs_difference(nums, goal):
+    mid = len(nums) // 2
+    L = subset_sums(nums[:mid])         # 2^(n/2) left sums
+    R = sorted(subset_sums(nums[mid:])) # 2^(n/2) right sums, sorted for binary search
+    best = float('inf')
+    for a in L:
+        need = goal - a                 # want b closest to this
+        i = bisect_left(R, need)
+        for b in (R[i-1] if i > 0 else None, R[i] if i < len(R) else None):
+            if b is not None:
+                best = min(best, abs(a + b - goal))
+    return best
+</code></pre>
+  <p>You didn't recall "meet in the middle" — you asked "can I shrink the exponent?", split the work in half, and then noticed the combine step is just a closest-value lookup, which a sorted array answers by binary search. The splitting plus the sorted-combine <em>is</em> the pattern.</p>
+</div>
+
+<p><strong>The transferable shape:</strong> the two halves give you two sets of partial answers; the art is the <em>combine</em>. The combine is always "for each left partial, find the matching right partial(s) fast," and the matching is done by whichever Lesson-2/5/10 tool fits the relation you need: <strong>binary search on a sorted R</strong> for "closest to / ≤ a target" (this problem), a <strong>hash set/map of R</strong> for "exactly equals a target" (counting pairs that sum to K), or <strong>two pointers across sorted L and R</strong> for "count pairs with sum ≤ K." Same split, different combine.</p>
+
+<!-- WHEN / WHY -->
+<h2>When to reach for meet in the middle, and why</h2>
+<ul>
+  <li><strong>The problem is genuinely a subset / subsequence / assignment search (each element is independently in-or-out, or picked from a few choices), and n is small — around 30 to 40 — so 2<sup>n</sup> is too big but 2<sup>n/2</sup> is fine.</strong> That specific size window is the loudest signal: n ≤ 20 you'd just brute-force the whole thing; n in the thirties with "choose a subset" is almost a tell for this technique, because halving the exponent is exactly the room you have.</li>
+  <li><strong>A sum-indexed DP (Lesson 28) is blocked because the values are huge (sums up to 10<sup>9</sup>), so there's no small table to fill.</strong> When the obstacle is the <em>magnitude of the values</em> rather than the count of items, the pseudo-polynomial DP dies and you fall back to enumerating subsets — meet in the middle is how you make that enumeration affordable by splitting it.</li>
+  <li><strong>After splitting, the two halves combine through a clean pairwise relation — "closest to", "equals", "at most" a target.</strong> You need the combine to be a fast lookup, not another full pairing; if R is sorted or hashed, each left partial finds its match in O(log) or O(1), which is what turns 2<sup>n/2</sup> × 2<sup>n/2</sup> back down to 2<sup>n/2</sup> · log. If the two halves can't be matched by such a lookup, the technique doesn't buy you anything.</li>
+  <li><strong>Each element has k &gt; 2 independent choices (not just in/out), and k<sup>n</sup> is too big but k<sup>n/2</sup> is fine.</strong> The split isn't limited to subsets: anything where the global answer factors as "a choice over the left half" combined with "a choice over the right half" admits the same halving, as long as the combine stays a fast lookup.</li>
+</ul>
+
+<!-- TEMPLATE -->
+<h2>The templates</h2>
+<pre><code>from bisect import bisect_left, bisect_right
+
+# Generate all 2^len(arr) subset sums of a half.
+def subset_sums(arr):
+    sums = [0]
+    for x in arr:
+        sums += [s + x for s in sums]
+    return sums
+
+# COMBINE by "closest to target": want left+right nearest to goal.
+def closest(nums, goal):
+    m = len(nums) // 2
+    L = subset_sums(nums[:m])
+    R = sorted(subset_sums(nums[m:]))
+    best = float('inf')
+    for a in L:
+        t = goal - a
+        i = bisect_left(R, t)
+        for b in (R[i-1] if i else None, R[i] if i < len(R) else None):
+            if b is not None:
+                best = min(best, abs(a + b - goal))
+    return best
+
+# COMBINE by "exactly equals target": count subsets summing to K.
+def count_eq(nums, K):
+    from collections import Counter
+    m = len(nums) // 2
+    L = Counter(subset_sums(nums[:m]))
+    R = Counter(subset_sums(nums[m:]))
+    return sum(cntA * R.get(K - a, 0) for a, cntA in L.items())
+
+# COMBINE by "at most target": count pairs with left+right <= K (two pointers).
+def count_leq(nums, K):
+    m = len(nums) // 2
+    L = sorted(subset_sums(nums[:m]))
+    R = sorted(subset_sums(nums[m:]))
+    total, j = 0, len(R) - 1
+    for a in L:                 # L ascending, R pointer sweeps down
+        while j >= 0 and a + R[j] > K:
+            j -= 1
+        total += j + 1
+    return total
+</code></pre>
+
+<!-- PRACTICE -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only. The easy/medium ones aren't meet-in-the-middle — they're the <em>sub-skills</em> (subset enumeration, closest-in-sorted, exact-match hashing) you must own before the technique clicks; the hards are the real thing. For each hard, first ask "is n around 40 with huge values?" to confirm the signal, then decide the split and the combine relation.</p>
+<ol>
+  <li><strong>Two Sum</strong> (Easy) — <a href="https://leetcode.com/problems/two-sum/">link</a> — the "exact match via hash" combine, in miniature.</li>
+  <li><strong>Subsets</strong> (Medium) — <a href="https://leetcode.com/problems/subsets/">link</a> — own the 2<sup>n</sup> enumeration cold.</li>
+  <li><strong>4Sum</strong> (Medium) — <a href="https://leetcode.com/problems/4sum/">link</a> — think of it as split into two pairs, then match (the baby meet-in-the-middle).</li>
+  <li><strong>Combination Sum IV</strong> (Medium) — <a href="https://leetcode.com/problems/combination-sum-iv/">link</a> — contrast: here values are small, so DP wins and you'd NOT split.</li>
+  <li><strong>Partition Equal Subset Sum</strong> (Medium) — <a href="https://leetcode.com/problems/partition-equal-subset-sum/">link</a> — contrast: small sum budget → pseudo-poly DP, no split needed.</li>
+  <li><strong>Target Sum</strong> (Medium) — <a href="https://leetcode.com/problems/target-sum/">link</a> — assign ± to each number; recognize it as a subset-sum in disguise.</li>
+  <li><strong>Closest Subsequence Sum</strong> (Hard) — <a href="https://leetcode.com/problems/closest-subsequence-sum/">link</a> — the canonical meet-in-the-middle; the one we derived.</li>
+  <li><strong>Partition Array Into Two Arrays to Minimize Sum Difference</strong> (Hard) — <a href="https://leetcode.com/problems/partition-array-into-two-arrays-to-minimize-sum-difference/">link</a> — meet in the middle with a size constraint (pick exactly n of 2n).</li>
+  <li><strong>Tallest Billboard</strong> (Hard) — <a href="https://leetcode.com/problems/tallest-billboard/">link</a> — three choices per rod; either meet-in-the-middle on the difference, or a difference-indexed DP — compare the two.</li>
+  <li><strong>Maximum Score Words Formed by Letters</strong> (Hard) — <a href="https://leetcode.com/problems/maximum-score-words-formed-by-letters/">link</a> — subset search over words; small word count means plain 2<sup>n</sup>, a useful "when NOT to split" check.</li>
+</ol>
+
+<!-- COMPOSITION -->
+<h2>Composition — a Hard built from meet-in-the-middle + earlier patterns</h2>
+<p><strong>Partition Array Into Two Arrays to Minimize Sum Difference</strong> (LeetCode 2035, Hard) — <a href="https://leetcode.com/problems/partition-array-into-two-arrays-to-minimize-sum-difference/">link</a>. Composes this lesson's <strong>split-and-combine</strong> with <strong>bitmask subset enumeration</strong> (Lesson 13), <strong>sorting as preprocessing</strong> (Lesson 11), and <strong>binary search for the closest element</strong> (Lesson 10).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The problem:</strong> you have 2n numbers; split them into two groups of <em>exactly n each</em> to minimize the absolute difference of the two group sums. Here n ≤ 15, so 2n ≤ 30.</p>
+  <p><strong>Reframe:</strong> let <code>S</code> be the total sum. If one group has sum <code>s</code>, the other has <code>S − s</code> and the difference is <code>|S − 2s|</code>, minimized when <code>s</code> is as close to <code>S/2</code> as possible. So we want a size-n subset whose sum is closest to <code>S/2</code> — a "closest-to-target" subset problem, but with the twist that the subset must have exactly n elements.</p>
+  <p><strong>Pattern A — split into halves and enumerate by popcount (meet-in-the-middle + bitmask, Lessons 13 + this one):</strong> the chosen group takes some <code>i</code> elements from the left half and <code>n − i</code> from the right half. So enumerate the left half's subsets (2<sup>n</sup> via bitmasks) bucketed <em>by how many elements they use</em> — <code>leftSums[i]</code> = all sums of left-subsets of size <code>i</code> — and likewise bucket the right half's sums by size. The size buckets are what handle the "exactly n total" constraint; it's the same split as Closest Subsequence Sum, refined by popcount.</p>
+  <p><strong>Pattern B — sort each right bucket, then binary-search the closest complement (Lessons 11 + 10):</strong> for a left sum <code>a</code> that used <code>i</code> elements, you need a right sum from bucket <code>n − i</code> that makes <code>a + b</code> closest to <code>S/2</code> — i.e. the value in <code>rightSums[n−i]</code> closest to <code>S/2 − a</code>. Sort each right bucket once (Lesson 11), then each lookup is one binary search for the straddling neighbors (Lesson 10).</p>
+  <p>The Hard = (meet-in-the-middle split, with bitmask enumeration bucketed by popcount to enforce the size-n constraint) + (sort each complement bucket, then binary-search for the closest reachable sum). Peel off the "exactly n each" wording and it's Closest Subsequence Sum wearing a popcount constraint — which is exactly how composed hards tend to look.</p>
+</details>
+
+<h2>Your reps</h2>
+<ol>
+  <li>Implement Closest Subsequence Sum from scratch and, on paper, write out the two subset-sum lists for <code>nums = [1, −2, 3]</code> split as [1,−2] | [3], then trace one binary search for <code>goal = 2</code>.</li>
+  <li>For Combination Sum IV and Partition Equal Subset Sum, state in one sentence each why you would <em>not</em> use meet-in-the-middle — pin the signal (small values → DP wins) so you don't over-apply the technique.</li>
+  <li>Write the "count subsets summing to exactly K" variant with two Counters and confirm it's the hash-combine, not the binary-search combine.</li>
+</ol>
+
+<!-- REFERENCE -->
+<h2 id="refcard">Reference card — Meet in the Middle</h2>
+<h3>When, and why</h3>
+<p>Use it when the problem is a genuine subset/assignment search, n is small (≈30-40) so 2<sup>n</sup> is too big but 2<sup>n/2</sup> is fine, and a sum-indexed DP is blocked because the values are huge. Splitting the input into two halves halves the exponent; the global answer always factors as "a choice over the left half" combined with "a choice over the right half." The payoff only lands if the combine is a fast lookup, not a second full pairing.</p>
+<h3>The move</h3>
+<p>Split into two halves. Enumerate all 2<sup>n/2</sup> partial results of each (subset sums via bitmask or doubling). Then combine: for each left partial, find the matching right partial(s) fast — binary search on a sorted R for "closest / ≤ target" (sort R first), a hash map of R for "exactly equals target," or two pointers across sorted L and R for "count pairs ≤ K." Extra constraints (exactly n chosen) become buckets on the partials (e.g. by popcount).</p>
+<h3>Template</h3>
+<pre><code>from bisect import bisect_left
+def subset_sums(arr):
+    s = [0]
+    for x in arr: s += [v + x for v in s]
+    return s
+m = len(nums)//2
+L = subset_sums(nums[:m]); R = sorted(subset_sums(nums[m:]))
+best = float('inf')
+for a in L:
+    i = bisect_left(R, goal - a)
+    for b in (R[i-1] if i else None, R[i] if i < len(R) else None):
+        if b is not None: best = min(best, abs(a + b - goal))
+# O(2^(n/2) · n)</code></pre>
+<h3>Classic problems</h3>
+<p>Closest Subsequence Sum (H), Partition Array Into Two Arrays to Minimize Sum Difference (H), Tallest Billboard (H). Contrast cases where values are small and a DP wins instead: Partition Equal Subset Sum (M), Combination Sum IV (M).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> The hardest judgment here is "split or DP?" — if you're unsure, tell me the constraint on n and the constraint on the values. Small n + huge values → meet in the middle; small values → sum-indexed DP. I'll walk you through reading those two constraints off a problem statement.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> CP-Algorithms, <a href="https://cp-algorithms.com/num_methods/meet-in-the-middle.html">Meet in the middle</a>. For the combine-step variations (closest vs exact vs ≤), re-read Lessons 10, 5, and 2 on how each lookup works.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 35: Heap Patterns</span>
+  <span>Course complete — move to interleaving / mock mode in chat.</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

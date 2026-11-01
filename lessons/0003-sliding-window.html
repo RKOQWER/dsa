@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 3 — Sliding Window (derived, not memorized)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 1 · Linear structures</p>
+<span class="lesson-no">Lesson 03 of the course</span>
+<h1>Sliding Window — derived from the waste in re-scanning</h1>
+
+<p>By the end you'll be able to <em>derive</em> a sliding window on a cold problem, tell the fixed-size and variable-size flavors apart by what the problem asks, and push the pattern all the way to a <strong>Hard</strong>.</p>
+
+<!-- ============ SPACED WARM-UP ============ -->
+<h2>Warm-up — recall from earlier lessons (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. "Find a pair summing to target" on an <strong>unsorted</strong> array — why is two pointers the wrong tool here?</div>
+  <button class="opt" data-correct="false" data-fb="Nothing about array length disqualifies two pointers; the missing precondition does.">The array is too long for O(n)</button>
+  <button class="opt" data-correct="true" data-fb="Right — two pointers needs a monotonic directional signal, usually from sortedness. Without it, moving a pointer tells you nothing, so a hashmap is the tool.">Without sortedness, moving a pointer gives no directional info</button>
+  <button class="opt" data-correct="false" data-fb="Two pointers is fine on duplicates; the issue is the lack of order.">Duplicate values break two pointers</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. Container With Most Water: why do you move the <strong>shorter</strong> line?</div>
+  <button class="opt" data-correct="true" data-fb="Yes — width shrinks either way, and the short line caps the height, so moving the tall line can't improve the area. Moving the short line is the only move that could.">Moving the tall line can't raise the capped height, so it's provably useless</button>
+  <button class="opt" data-correct="false" data-fb="It's not about the larger value; it's about which move could possibly improve a two-factor product.">The shorter line always has the larger index</button>
+  <button class="opt" data-correct="false" data-fb="There's no sorting in Container With Most Water.">Because the array is sorted</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving sliding window from scratch</h2>
+<p>Take the cleanest case. An array of positive integers; find the <strong>longest contiguous subarray whose sum is ≤ k</strong>.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Brute force:</strong> for every start index <code>i</code>, extend an end index <code>j</code> and sum <code>a[i..j]</code> until it exceeds <code>k</code>; track the longest. That's O(n²) because for each new start you re-sum from scratch.</p>
+  <p><strong>Spot the waste:</strong> watch what happens between consecutive starts. When you finish start <code>i</code> and move to start <code>i+1</code>, brute force throws away everything and re-sums <code>a[i+1..j]</code> from zero — even though it just computed <code>a[i..j]</code> one step ago. The only difference between those two sums is that <code>a[i]</code> left. You recomputed an entire range to delete one element.</p>
+  <p><strong>The insight (= the pattern):</strong> keep a window <code>[left, right]</code> and a running sum. Push <code>right</code> forward and add the new element. The instant the sum breaks the constraint (<code>&gt; k</code>), move <code>left</code> forward and subtract the element leaving — shrinking until the window is valid again. Every element is added exactly once (by <code>right</code>) and removed at most once (by <code>left</code>), so the total work is O(n). The window never slides backward; that monotonic one-directional motion <em>is</em> the sliding-window pattern.</p>
+</div>
+
+<h3>The deeper principle (so it transfers)</h3>
+<p>Sliding window applies when the answer is about a <strong>contiguous</strong> run of the array or string, and when extending or shrinking that run changes your running state <em>incrementally</em> — you can update the state in O(1) as an element enters or leaves, instead of recomputing it. The second condition is the real gatekeeper: if adding an element forces you to rescan the whole window (so there's no cheap incremental update), sliding window gives you nothing. The classic enabling case is "the quantity only ever grows as you add elements and only shrinks as you remove them," which is why it pairs so naturally with monotonic constraints like a sum of positive numbers or a count of distinct characters.</p>
+
+<!-- ============ SIGNALS ============ -->
+<h2>When to use it, and the two flavors</h2>
+
+<h3>Fixed-size window</h3>
+<p>You use a fixed window when the problem names an exact length — "every subarray of size <code>k</code>", "the maximum sum of <code>k</code> consecutive elements", "averages of all windows of width <code>k</code>." You slide a window of constant width across the array: each step you add the element entering on the right and subtract the element falling off the left, so the window's aggregate updates in O(1). It works because the width is pinned, so you never decide <em>how far</em> to shrink — you just march the fixed frame one step at a time.</p>
+
+<h3>Variable-size window</h3>
+<p>You use a variable window when the problem asks for the <em>longest</em> or <em>shortest</em> run of consecutive elements that obeys some rule — "longest substring with at most K distinct characters", "smallest subarray with sum ≥ target", "longest substring without repeating characters." You keep two markers, <code>left</code> and <code>right</code>, marking the stretch you are currently looking at. You move <code>right</code> forward to make the stretch bigger. The moment the stretch breaks the rule, you move <code>left</code> forward to chop elements off the start until the rule holds again. Then you keep going.</p>
+<p><strong>Why moving <code>left</code> is always the right fix:</strong> if your current stretch already breaks the rule, making it even longer can only make things worse, never better — so the only way back to a legal stretch is to make it shorter from the left. Concretely: suppose the rule is "sum ≤ 10" and your window <code>[4, 5, 3]</code> sums to 12, which is too big. Adding another number on the right makes the sum even bigger, so that cannot help; your only move is to drop the <code>4</code> on the left. That is the whole idea — <em>once you are over the line, growing can't save you, only shrinking can</em>. Because of that, you never have to second-guess the shrink: it is always the correct repair.</p>
+
+<div class="callout derive">
+  <span class="label">"Longest / shortest" makes me think DP or greedy — how do I know it's a window?</span>
+  <p>Good instinct to check, because "longest/shortest" really does show up in DP, greedy, <em>and</em> sliding window. The word alone decides nothing. Sliding window applies only when <strong>all three</strong> of these are true:</p>
+  <ol>
+    <li><strong>The answer is a contiguous chunk</strong> — a subarray or substring, with the elements next to each other. Not a subsequence where gaps are allowed.</li>
+    <li><strong>You can test a window's validity cheaply and incrementally</strong> — when you add one element on the right or drop one on the left, you can update "is this window still valid?" in about O(1), without rescanning the whole window. (A running sum, a character-frequency map, a count of distinct characters — all cheap to update.)</li>
+    <li><strong>Validity is monotonic</strong> — if a window is invalid because it is too big, every bigger window is also invalid. This is what lets you shrink with confidence instead of exploring every possibility.</li>
+  </ol>
+  <p>If any one of the three fails, it is not a sliding window.</p>
+  <p><strong>The single fastest discriminator — trust this word, not "longest":</strong> if the problem says <em>subarray</em> or <em>substring</em> (contiguous), lean sliding window. If it says <em>subsequence</em> (gaps allowed), lean dynamic programming. "Longest Repeating Character Replacement" says <em>substring</em> → contiguous → window. "Longest Increasing <em>Subsequence</em>" says subsequence → gaps → DP. Same word "longest", opposite tool, decided entirely by substring-vs-subsequence.</p>
+  <p><strong>Versus greedy specifically:</strong> greedy makes one locally-best choice at each step and never undoes it. A sliding window <em>does</em> undo — it removes elements it previously added when it shrinks. So if the problem needs you to sometimes take things back out, it is a window, not pure greedy.</p>
+</div>
+
+<h3>How to tell which flavor you need</h3>
+<p>Read the constraint on the window size. If the size is given to you as a fixed number, it is a fixed window. If the size is the thing you are optimizing (you want the longest or shortest window meeting some condition), it is a variable window. That single question — "is the window width given, or is it the answer?" — picks the flavor every time.</p>
+
+<!-- ============ TEMPLATE ============ -->
+<h2>The template (reproduce from memory)</h2>
+<pre><code># Fixed-size window: max sum of any k consecutive elements
+def max_sum_k(a, k):
+    window = sum(a[:k])
+    best = window
+    for right in range(k, len(a)):
+        window += a[right] - a[right - k]   # add entering, drop leaving
+        best = max(best, window)
+    return best
+
+# Variable-size window: longest subarray with sum <= k (positives)
+def longest_le_k(a, k):
+    left = 0
+    total = 0
+    best = 0
+    for right in range(len(a)):
+        total += a[right]                   # grow right
+        while total > k:                    # shrink left until valid
+            total -= a[left]
+            left += 1
+        best = max(best, right - left + 1)
+    return best
+</code></pre>
+<p>A compact reference is at the <a href="#refcard">bottom of this lesson</a>, designed so a 2-minute re-read reloads the whole pattern.</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only. Solve them yourself; ask me if you get stuck on any.</p>
+<ol>
+  <li><strong>Maximum Average Subarray I</strong> (Easy) — <a href="https://leetcode.com/problems/maximum-average-subarray-i/">link</a></li>
+  <li><strong>Contains Duplicate II</strong> (Easy) — <a href="https://leetcode.com/problems/contains-duplicate-ii/">link</a></li>
+  <li><strong>Longest Substring Without Repeating Characters</strong> (Medium) — <a href="https://leetcode.com/problems/longest-substring-without-repeating-characters/">link</a></li>
+  <li><strong>Longest Repeating Character Replacement</strong> (Medium) — <a href="https://leetcode.com/problems/longest-repeating-character-replacement/">link</a></li>
+  <li><strong>Permutation in String</strong> (Medium) — <a href="https://leetcode.com/problems/permutation-in-string/">link</a></li>
+  <li><strong>Find All Anagrams in a String</strong> (Medium) — <a href="https://leetcode.com/problems/find-all-anagrams-in-a-string/">link</a></li>
+  <li><strong>Max Consecutive Ones III</strong> (Medium) — <a href="https://leetcode.com/problems/max-consecutive-ones-iii/">link</a></li>
+  <li><strong>Fruit Into Baskets</strong> (Medium) — <a href="https://leetcode.com/problems/fruit-into-baskets/">link</a></li>
+  <li><strong>Subarray Product Less Than K</strong> (Medium) — <a href="https://leetcode.com/problems/subarray-product-less-than-k/">link</a></li>
+  <li><strong>Minimum Size Subarray Sum</strong> (Medium) — <a href="https://leetcode.com/problems/minimum-size-subarray-sum/">link</a></li>
+  <li><strong>Sliding Window Maximum</strong> (Hard) — <a href="https://leetcode.com/problems/sliding-window-maximum/">link</a></li>
+  <li><strong>Minimum Window Substring</strong> (Hard) — <a href="https://leetcode.com/problems/minimum-window-substring/">link</a></li>
+  <li><strong>Substring with Concatenation of All Words</strong> (Hard) — <a href="https://leetcode.com/problems/substring-with-concatenation-of-all-words/">link</a></li>
+</ol>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>Minimum Window Substring</strong> (Hard) — <a href="https://leetcode.com/problems/minimum-window-substring/">link</a> — composes a variable-size sliding window (this lesson) with a hashing frequency count (the counting idea you already use with hashmaps, formalized in Lesson 5).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The ask:</strong> smallest window in <code>s</code> that contains every character of <code>t</code> (with multiplicity). "Smallest contiguous window meeting a condition" is the variable-window signal.</p>
+  <p><strong>Piece A — variable window:</strong> grow <code>right</code> until the window is valid (contains all of <code>t</code>), then shrink <code>left</code> as far as it can go while staying valid, recording the best length. This is exactly the grow-right / shrink-left machine from this lesson.</p>
+  <p><strong>Piece B — frequency counting:</strong> to decide "does the window contain all of <code>t</code>" in O(1) per step, keep a need-count map of <code>t</code> and a <code>have</code> counter of how many required characters are currently satisfied. As a character enters or leaves, bump the counts and compare — never rescan the window. That is the hashmap counting idea.</p>
+  <p>The Hard is just the window loop with an O(1) validity check powered by two counters. Neither half is hard alone — naming the two halves is the whole method.</p>
+  <pre><code>from collections import Counter
+def minWindow(s, t):
+    need = Counter(t)
+    missing = len(t)
+    left = start = end = 0
+    for right, ch in enumerate(s, 1):     # right is 1-based end
+        if need[ch] > 0:
+            missing -= 1
+        need[ch] -= 1
+        while missing == 0:               # window valid: try to shrink
+            if end == 0 or right - left < end - start:
+                start, end = left, right
+            need[s[left]] += 1
+            if need[s[left]] > 0:
+                missing += 1
+            left += 1
+    return s[start:end]</code></pre>
+</details>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Sliding Window</h2>
+<p>The compressed version. Re-reading just this should reload the pattern.</p>
+
+<h3>When to use it, and why</h3>
+<ul>
+  <li><strong>Fixed-size window.</strong> The problem names an exact window width <code>k</code> and asks for an aggregate over every such window. Slide a constant-width frame, adding the entering element and subtracting the leaving one, so each window's value updates in O(1).</li>
+  <li><strong>Variable-size window.</strong> The problem asks for the longest or shortest contiguous stretch satisfying a constraint. Grow the window with <code>right</code>; when the constraint breaks, shrink with <code>left</code> until it holds again. Works because validity is monotonic — a too-big window can't be fixed by growing.</li>
+</ul>
+
+<h3>The one-line reason it works</h3>
+<p>Each element enters the window once and leaves at most once, and the running state updates incrementally as elements enter and leave — so the whole scan is O(n) instead of the O(n²) of re-summing every subarray.</p>
+
+<h3>Discrimination test (is it a window, or DP/greedy?)</h3>
+<p>"Longest/shortest" alone does not mean sliding window — it also appears in DP and greedy. It is a window only when all three hold: (1) the answer is a <strong>contiguous</strong> subarray/substring, not a subsequence; (2) you can update "is this window valid?" <strong>cheaply</strong> as one element enters or leaves, without rescanning; (3) validity is <strong>monotonic</strong> — a too-big invalid window stays invalid when grown. Fastest cue: the word <strong>"subarray/substring" → window</strong>, the word <strong>"subsequence" → DP</strong>. Versus greedy: a window <em>undoes</em> choices when it shrinks, whereas greedy never takes anything back.</p>
+
+<h3>Templates (Python)</h3>
+<pre><code># fixed window
+window = sum(a[:k]); best = window
+for right in range(k, len(a)):
+    window += a[right] - a[right-k]
+    best = max(best, window)
+
+# variable window
+left = 0; agg = init
+for right in range(len(a)):
+    agg = add(agg, a[right])
+    while not valid(agg):
+        agg = remove(agg, a[left]); left += 1
+    best = better(best, right - left + 1)</code></pre>
+
+<h3>Complexity and classic problems</h3>
+<p>Time O(n), space O(1) or O(alphabet) when a frequency map is involved. Classic set: Longest Substring Without Repeating Characters (Medium), Minimum Size Subarray Sum (Medium), Permutation in String (Medium), Minimum Window Substring (Hard, composed with frequency counting).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> Stuck on when to shrink versus grow, or on why a non-contiguous problem rules out windows? Bring the exact problem and we'll work the reasoning together.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> NeetCode's sliding-window walkthroughs are the clearest free resource — <a href="https://neetcode.io/courses">neetcode.io/courses</a> (Sliding Window section).
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 2: Two Pointers</span>
+  <span>Next: Lesson 4 — Prefix Sum →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

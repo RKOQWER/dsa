@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 20 — Graph Modeling (seeing the graph that is already there)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 4 · Graphs</p>
+<span class="lesson-no">Lesson 20 of the course</span>
+<h1>Graph Modeling — the hard part is seeing the graph, not traversing it</h1>
+
+<p>Most people can run BFS and DFS in their sleep. Where they freeze is one step earlier: a problem says nothing about "graphs," yet the right move is to build one. This lesson is about that recognition — turning grids, states, strings, and dependencies into <strong>nodes and edges</strong> so the traversal patterns you already know can take over. By the end you'll have a checklist for spotting a hidden graph and a template for building the adjacency.</p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Recall from earlier lessons (no peeking)</h2>
+<p>Reload a few things before we start.</p>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. On <em>Number of Islands</em> you couldn't find a "slow brute force" beneath the DFS. What did that signal?</div>
+  <button class="opt" data-correct="false" data-fb="No — a missing slower baseline is information, not a dead end.">You picked the wrong pattern</button>
+  <button class="opt" data-correct="true" data-fb="Right. It's a traversal/enumeration problem: the correct traversal IS the answer, there is no dumber version to optimize. You were done once you saw 'visit each cell, flood each group'.">It is a traversal problem — the traversal is the answer</button>
+  <button class="opt" data-correct="false" data-fb="Grids are not inherently a DP signal; connectivity counting is traversal.">It must be dynamic programming</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. You need the single <em>smallest value that still satisfies</em> a monotone feasibility check over a numeric range. Which earlier pattern?</div>
+  <button class="opt" data-correct="true" data-fb="Yes — binary search on the answer (Lesson 10). Monotone feasibility is the trigger.">Binary search on the answer</button>
+  <button class="opt" data-correct="false" data-fb="Sliding window is for contiguous subarrays under a constraint, not for searching a numeric answer space.">Sliding window</button>
+  <button class="opt" data-correct="false" data-fb="Quickselect finds an order statistic in an array, not a feasible value over a range.">Quickselect</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving the model: "this problem IS a graph" from first principles</h2>
+
+<p>A graph is nothing more than <strong>a set of states (nodes) and the allowed moves between them (edges)</strong>. That definition is the whole trick: almost any problem about "reaching," "connecting," "ordering," or "transforming step by step" is secretly a graph, because each of those words hides a notion of state + transition.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p>Take a word-transformation puzzle: start from <code>"hit"</code>, change one letter at a time (each intermediate must be a real word), reach <code>"cog"</code> in the fewest steps.</p>
+  <p><strong>Brute force:</strong> try every sequence of single-letter edits and keep the shortest that reaches the target. That is an explosion of sequences — exponential, and you re-explore the same words over and over.</p>
+  <p><strong>Spot the waste:</strong> the only thing that matters at any moment is <em>which word you are currently on</em> — not how you got there. Two different edit sequences that both arrive at <code>"hot"</code> have identical futures. Brute force re-derives that future every time.</p>
+  <p><strong>The insight (= the model):</strong> make each <em>word</em> a node, and connect two words with an edge when they differ by exactly one letter. Now "fewest edits from hit to cog" is literally "shortest path from node hit to node cog." The exponential sequence-search collapses into a graph with one node per word, and a traversal visits each word once. <strong>Recognizing the state (the word) and the move (one-letter change) IS the modeling step</strong> — everything after it is a traversal you already know.</p>
+</div>
+
+<h3>The deeper principle (so it transfers)</h3>
+<p>The modeling question is always the same two-parter: <strong>"What is the state, and what are the legal moves from a state?"</strong> Answer those and you have your nodes and edges. If the state is a cell, moves are the four neighbours. If the state is a string, moves are single edits. If the state is "courses you have finished," moves are "take a course whose prerequisites are done." Once you can name the state and the move, the problem has already become a graph — and whether you then reach for BFS, DFS, topological sort, or shortest path is a separate, later decision driven by what the question asks.</p>
+
+<!-- ============ WHEN TO USE / HOW TO MODEL ============ -->
+<h2>How to recognise a hidden graph, and how to build it</h2>
+<p>These are the recurring disguises. Each is written out fully so you can judge whether it fits, not memorize a keyword.</p>
+
+<h3>A grid is a graph</h3>
+<p>When the input is a 2D grid and the problem talks about moving between adjacent cells, treat each cell <code>(r, c)</code> as a node and connect it to its up/down/left/right neighbours (sometimes the 8 diagonals too). You usually do not build an explicit adjacency list for a grid — you compute neighbours on the fly with the four direction offsets, because the grid already encodes the structure.</p>
+
+<h3>A set of states with legal transitions is a graph</h3>
+<p>When the problem is "get from a starting configuration to a goal configuration by applying allowed operations" — word edits, lock combinations, board positions, jumps — each configuration is a node and each legal operation is an edge. You rarely materialise all nodes up front; you generate a node's neighbours lazily when you reach it, because the full state space is often huge.</p>
+
+<h3>Dependencies and "must come before" relationships are a directed graph</h3>
+<p>When items have prerequisites or an order constraint ("you must finish A before B"), draw a directed edge A → B. The problem is then about ordering or reachability in that directed graph. This is the shape that leads to topological sort, which you will meet next lesson.</p>
+
+<h3>Pairwise relationships / "are these two connected" is a graph</h3>
+<p>When you are told pairs that are related (friends, equivalent accounts, merged islands) and asked how many groups exist or whether two things are linked, the pairs are edges and the items are nodes, and the question is about connected components.</p>
+
+<h3>How you store it (adjacency)</h3>
+<p>For an explicit graph given as edges, the default representation is an <strong>adjacency list</strong>: a dictionary mapping each node to the list of its neighbours. It uses O(V + E) space and lets you iterate a node's neighbours directly, which is what every traversal needs. Use an adjacency <em>matrix</em> only when the graph is dense or you need O(1) "is there an edge between u and v" lookups, since it costs O(V²) space.</p>
+
+<!-- ============ TEMPLATE ============ -->
+<h2>The template (reproduce from memory)</h2>
+<pre><code>from collections import defaultdict
+
+# 1) Build an adjacency list from an edge list
+def build_graph(n, edges, directed=False):
+    adj = defaultdict(list)
+    for u, v in edges:
+        adj[u].append(v)
+        if not directed:
+            adj[v].append(u)
+    return adj
+
+# 2) Grid neighbours on the fly (no explicit graph needed)
+DIRS = [(-1, 0), (1, 0), (0, -1), (0, 1)]   # up, down, left, right
+def neighbors(r, c, rows, cols):
+    for dr, dc in DIRS:
+        nr, nc = r + dr, c + dc
+        if 0 <= nr < rows and 0 <= nc < cols:
+            yield nr, nc
+
+# 3) State-space graph: generate a node's neighbours lazily
+def state_neighbors(word, word_set):
+    for i in range(len(word)):
+        for ch in "abcdefghijklmnopqrstuvwxyz":
+            cand = word[:i] + ch + word[i+1:]
+            if cand != word and cand in word_set:
+                yield cand
+</code></pre>
+<p>A compact reference version of all of this is at the <a href="#refcard">bottom of this lesson</a>.</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — build the model first, then traverse</h2>
+<p>For each, the real exercise is naming the node and the edge before you write a line. Problems only; ask me if you get stuck.</p>
+
+<ol>
+  <li><strong>Find the Town Judge</strong> (Easy) — <a href="https://leetcode.com/problems/find-the-town-judge/">link</a>. What are the nodes, and what do in/out-degrees tell you?</li>
+  <li><strong>Find Center of Star Graph</strong> (Easy) — <a href="https://leetcode.com/problems/find-center-of-star-graph/">link</a>.</li>
+  <li><strong>Flood Fill</strong> (Easy) — <a href="https://leetcode.com/problems/flood-fill/">link</a>. The grid is the graph.</li>
+  <li><strong>Find if Path Exists in Graph</strong> (Easy) — <a href="https://leetcode.com/problems/find-if-path-exists-in-graph/">link</a>.</li>
+  <li><strong>Keys and Rooms</strong> (Medium) — <a href="https://leetcode.com/problems/keys-and-rooms/">link</a>. Rooms are nodes; keys are edges.</li>
+  <li><strong>Clone Graph</strong> (Medium) — <a href="https://leetcode.com/problems/clone-graph/">link</a>. Model the node, then traverse while copying.</li>
+  <li><strong>Number of Provinces</strong> (Medium) — <a href="https://leetcode.com/problems/number-of-provinces/">link</a>. An adjacency matrix is handed to you — how many components?</li>
+  <li><strong>Minimum Number of Vertices to Reach All Nodes</strong> (Medium) — <a href="https://leetcode.com/problems/minimum-number-of-vertices-to-reach-all-nodes/">link</a>.</li>
+  <li><strong>All Paths From Source to Target</strong> (Medium) — <a href="https://leetcode.com/problems/all-paths-from-source-to-target/">link</a>. A DAG given as an adjacency list.</li>
+  <li><strong>Is Graph Bipartite?</strong> (Medium) — <a href="https://leetcode.com/problems/is-graph-bipartite/">link</a>. Modeling + a 2-colouring traversal.</li>
+  <li><strong>Open the Lock</strong> (Medium) — <a href="https://leetcode.com/problems/open-the-lock/">link</a>. Each 4-digit combination is a node; model the edges before you traverse.</li>
+  <li><strong>Word Ladder</strong> (Hard) — <a href="https://leetcode.com/problems/word-ladder/">link</a>. The state-space graph from the derivation above.</li>
+</ol>
+
+<!-- ============ COMPOSITION (hard) ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p>Hards are usually two patterns stacked. <strong>Word Ladder</strong> (Hard 127) composes <em>graph modeling</em> (this lesson) with <em>hashing</em> (Lesson 5) and a plain shortest-path traversal.</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>Piece 1 — graph modeling (this lesson):</strong> each word is a node; two words are adjacent when they differ by exactly one letter. "Shortest transformation" = shortest path on this graph.</p>
+  <p><strong>Piece 2 — hashing (Lesson 5) to make edges cheap:</strong> the naive way to find neighbours is to compare every pair of words, O(N²·L). Instead, put the whole word list in a <em>set</em> for O(1) membership, and generate a word's neighbours by trying every single-letter change and checking set membership — O(L·26) per word. Hashing is what makes the edge generation affordable; without it the modeling is correct but too slow.</p>
+  <p><strong>Piece 3 — unweighted shortest path by BFS:</strong> every edge costs one step, so BFS from the start word finds the fewest transformations. (You will formalise BFS-as-shortest-path in Lessons 21 and 23; here it is just "explore level by level.")</p>
+  <pre><code>from collections import deque
+
+def ladderLength(beginWord, endWord, wordList):
+    words = set(wordList)                 # Piece 2: hashing for O(1) lookup
+    if endWord not in words:
+        return 0
+    q = deque([(beginWord, 1)])
+    seen = {beginWord}
+    while q:
+        word, steps = q.popleft()
+        if word == endWord:
+            return steps
+        for i in range(len(word)):        # Piece 1: generate one-letter neighbours
+            for ch in "abcdefghijklmnopqrstuvwxyz":
+                cand = word[:i] + ch + word[i+1:]
+                if cand in words and cand not in seen:
+                    seen.add(cand)
+                    q.append((cand, steps + 1))
+    return 0</code></pre>
+  <p>The Hard = (model words-as-nodes) + (hashing to generate edges fast) + (level-by-level traversal). Name the pieces and no single piece is hard.</p>
+</details>
+
+<!-- ============ ASK TEACHER ============ -->
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If a problem never says "graph" and you're unsure whether to model it as one, bring it to me and we'll name the state and the move together. That naming step is the whole skill of this lesson.
+</div>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Graph Modeling</h2>
+<p>The compressed version. If you've forgotten this weeks from now, re-reading just this section should reload it.</p>
+
+<h3>The recognition question</h3>
+<p>Ask: <strong>"What is the state, and what are the legal moves from a state?"</strong> If you can name both, the problem is a graph — the state is a node, the move is an edge. Deciding <em>which</em> traversal to run afterwards is a separate question driven by what is asked (reachability, components, ordering, shortest path).</p>
+
+<h3>Common disguises</h3>
+<ul>
+  <li><strong>Grid.</strong> Each cell is a node; neighbours are the 4 (or 8) adjacent cells. Compute neighbours on the fly with direction offsets; don't build an explicit list.</li>
+  <li><strong>State space.</strong> Each configuration (word, lock combo, board) is a node; each legal operation is an edge. Generate neighbours lazily — the full space is often huge.</li>
+  <li><strong>Dependencies.</strong> "A before B" is a directed edge A → B; leads to ordering/topological problems.</li>
+  <li><strong>Pairwise links.</strong> Related pairs are edges; questions about groups or "are these connected" are connected-components questions.</li>
+</ul>
+
+<h3>Representation</h3>
+<p>Default to an <strong>adjacency list</strong> (dict: node → list of neighbours), O(V + E) space. Use an adjacency matrix only for dense graphs or O(1) edge-existence checks (O(V²) space).</p>
+
+<h3>Templates</h3>
+<pre><code># edge list -> adjacency list
+adj = defaultdict(list)
+for u, v in edges:
+    adj[u].append(v)
+    adj[v].append(u)          # omit this line if directed
+
+# grid neighbours
+for dr, dc in [(-1,0),(1,0),(0,-1),(0,1)]:
+    nr, nc = r+dr, c+dc
+    if 0 <= nr < rows and 0 <= nc < cols:
+        ...                   # (nr, nc) is a neighbour</code></pre>
+
+<h3>Classic problems</h3>
+<p>Flood Fill (E), Find if Path Exists (E), Keys and Rooms (M), Clone Graph (M), Number of Provinces (M), Is Graph Bipartite? (M), Open the Lock (M), Word Ladder (H, composed with hashing + BFS).</p>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> the "nodes and edges" framing and standard representations are covered clearly in the CP-Algorithms graph section — <a href="https://cp-algorithms.com/graph/breadth-first-search.html">cp-algorithms.com/graph</a>.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 19: Trie Patterns</span>
+  <span>Next: Lesson 21 — Graph BFS &amp; DFS →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

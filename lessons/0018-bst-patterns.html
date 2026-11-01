@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 18 — BST Patterns (inorder is sorted — exploit it)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 3 · Recursion-driven patterns</p>
+<span class="lesson-no">Lesson 18 of the course</span>
+<h1>BST Patterns — one property (inorder = sorted) that trivializes a dozen problems</h1>
+
+<p>A binary search tree is just a binary tree with one extra promise: left subtree &lt; node &lt; right subtree, everywhere. That one promise collapses many "hard" tree problems into easy ones. By the end you'll reflexively ask, on any BST problem, "can I use the ordering to avoid visiting the whole tree?" — and you'll know the single fact that answers most of them: <strong>an inorder traversal of a BST yields the values in sorted order.</strong></p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Warm-up — recall from earlier lessons (no peeking)</h2>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. In tree DFS (Lesson 16), which traversal visits left subtree, then the node, then right subtree?</div>
+  <button class="opt" data-correct="true" data-fb="Right — inorder (left, node, right). On a BST this emits values in sorted order, the key fact of this lesson.">Inorder</button>
+  <button class="opt" data-correct="false" data-fb="Preorder visits the node first (node, left, right) — it does not yield sorted order on a BST.">Preorder</button>
+  <button class="opt" data-correct="false" data-fb="Postorder visits the node last (left, right, node) — used for bottom-up combines, not sorted output.">Postorder</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. From Lesson 10, what property of a search space lets binary search work?</div>
+  <button class="opt" data-correct="false" data-fb="Small size invites exponential search (backtracking), not binary search specifically.">The space is small</button>
+  <button class="opt" data-correct="true" data-fb="Yes — a monotone/ordered space, so a comparison tells you which half to discard. A BST's node comparison is the tree version of this.">It is ordered, so a comparison discards half</button>
+  <button class="opt" data-correct="false" data-fb="Duplicates are irrelevant to whether binary search applies; ordering is what matters.">It contains no duplicates</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving the BST toolkit from one property</h2>
+
+<p>Take <strong>validate a binary search tree</strong>. The naive check — "is <code>node.left.val &lt; node.val &lt; node.right.val</code> at every node?" — is a classic wrong answer: it only checks parent-child pairs, missing violations deeper down (a far-right descendant of the left subtree can still be larger than the root).</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Two ways to fix it, both from the ordering promise:</strong></p>
+  <p><strong>Approach 1 — carry valid bounds down (top-down, Lesson 16).</strong> The BST property means every node must lie within an open interval determined by its ancestors. The root may be anything; going left tightens the upper bound to the parent's value; going right tightens the lower bound. A node is valid iff it sits inside its inherited <code>(low, high)</code> range. This is the top-down "pass context down" flavor from tree DFS.</p>
+  <pre><code>def isValidBST(root):
+    def ok(node, low, high):
+        if not node: return True
+        if not (low < node.val < high): return False
+        return ok(node.left, low, node.val) and ok(node.right, node.val, high)
+    return ok(root, float('-inf'), float('inf'))</code></pre>
+  <p><strong>Approach 2 — inorder must be strictly increasing.</strong> Here's the deeper unlock: an inorder traversal of <em>any</em> BST produces its values in sorted order. So the tree is a valid BST iff its inorder sequence is strictly increasing. You don't even need bounds — walk inorder, and verify each value exceeds the previous one.</p>
+  <pre><code>def isValidBST(root):
+    prev = float('-inf')
+    def inorder(node):
+        nonlocal prev
+        if not node: return True
+        if not inorder(node.left): return False   # left
+        if node.val <= prev: return False          # node
+        prev = node.val
+        return inorder(node.right)                 # right
+    return inorder(root)</code></pre>
+  <p>The second approach generalizes to a whole family: kth smallest, the two swapped nodes in "recover BST", closest value, range sum — all are questions about a <em>sorted sequence</em> that you happen to be reading off a tree via inorder.</p>
+</div>
+
+<h3>The two BST superpowers</h3>
+<ul>
+  <li><strong>Inorder = sorted.</strong> Any problem that would be trivial on a sorted array (kth smallest, median-ish, "is it sorted", find two out-of-place elements) becomes trivial on a BST by walking inorder. You often don't even materialize the array — you track just the previous value or a running count, so it's O(h) space, not O(n).</li>
+  <li><strong>Each comparison discards a whole subtree.</strong> Because left &lt; node &lt; right, comparing your target to the current node tells you which single child could contain it — exactly like binary search (Lesson 10) choosing a half. Search, insert, delete, lowest-common-ancestor, floor/ceiling, and "closest value" all exploit this to run in O(h) instead of O(n).</li>
+</ul>
+
+<!-- ============ WHEN & WHY ============ -->
+<h2>When to reach for BST techniques, and why they work</h2>
+<p>The trigger is simply that the problem states the tree is a <strong>binary search tree</strong> (or asks you to build/validate one). The instant you see "BST", ask the two superpower questions: "does inorder-as-sorted answer this?" and "can I discard a subtree at each node by comparing to the target?". They work because the ordering invariant is a structural form of sortedness — inorder linearizes it into a sorted stream, and the per-node comparison is binary search embedded in the tree shape, so navigation costs O(h): O(log n) on a balanced tree, O(n) on a degenerate one.</p>
+<p>Do <em>not</em> fall back to generic whole-tree DFS (Lesson 16) on a BST when ordering would let you touch only one path — that throws away the very property that makes it a BST. And remember the worst case: if the tree is unbalanced (effectively a linked list), O(h) degrades to O(n); self-balancing variants fix that but are rarely required in interviews. When a problem gives a plain binary tree with no ordering promise, none of this applies — use Lesson 16 or 17 instead.</p>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — at least 10, easy → hard</h2>
+<p>Each rewards the "inorder = sorted" or "discard a subtree" reflex. Solve them; ask me if you get stuck.</p>
+<ol>
+  <li><strong>Search in a Binary Search Tree</strong> (Easy) — <a href="https://leetcode.com/problems/search-in-a-binary-search-tree/">link</a></li>
+  <li><strong>Insert into a Binary Search Tree</strong> (Medium) — <a href="https://leetcode.com/problems/insert-into-a-binary-search-tree/">link</a></li>
+  <li><strong>Range Sum of BST</strong> (Easy — prune by bounds) — <a href="https://leetcode.com/problems/range-sum-of-bst/">link</a></li>
+  <li><strong>Minimum Absolute Difference in BST</strong> (Easy — inorder adjacency) — <a href="https://leetcode.com/problems/minimum-absolute-difference-in-bst/">link</a></li>
+  <li><strong>Lowest Common Ancestor of a Binary Search Tree</strong> (Medium) — <a href="https://leetcode.com/problems/lowest-common-ancestor-of-a-binary-search-tree/">link</a></li>
+  <li><strong>Validate Binary Search Tree</strong> (Medium) — <a href="https://leetcode.com/problems/validate-binary-search-tree/">link</a></li>
+  <li><strong>Kth Smallest Element in a BST</strong> (Medium — inorder + count) — <a href="https://leetcode.com/problems/kth-smallest-element-in-a-bst/">link</a></li>
+  <li><strong>Convert Sorted Array to Binary Search Tree</strong> (Easy — reverse direction) — <a href="https://leetcode.com/problems/convert-sorted-array-to-binary-search-tree/">link</a></li>
+  <li><strong>Delete Node in a BST</strong> (Medium) — <a href="https://leetcode.com/problems/delete-node-in-a-bst/">link</a></li>
+  <li><strong>Binary Search Tree Iterator</strong> (Medium — controlled inorder) — <a href="https://leetcode.com/problems/binary-search-tree-iterator/">link</a></li>
+  <li><strong>Recover Binary Search Tree</strong> (Medium — two swapped inorder elements) — <a href="https://leetcode.com/problems/recover-binary-search-tree/">link</a></li>
+  <li><strong>Count of Smaller Numbers After Self</strong> (Hard — order-statistic reasoning) — <a href="https://leetcode.com/problems/count-of-smaller-numbers-after-self/">link</a></li>
+</ol>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>Recover Binary Search Tree</strong> (Medium 99) — <a href="https://leetcode.com/problems/recover-binary-search-tree/">link</a> — composes the "inorder = sorted" property (this lesson) with the "find the out-of-order elements in a sorted sequence" idea and the return-one-track-another side-state trick from tree DFS (Lesson 16). It's Medium-labelled but the reasoning is hard; it's the cleanest demonstration of the inorder superpower. Try it before opening the decomposition.</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p>Exactly two nodes of a valid BST were swapped; restore it without changing structure. The O(n)-space brute force: inorder into an array, find the two positions that break sortedness, swap their values back. The elegant O(h)-space version removes the array.</p>
+  <p><strong>Piece A (inorder = sorted, this lesson):</strong> if you read the tree inorder, exactly the two swapped values break the "strictly increasing" rule. In a sorted sequence with two elements swapped, you see either one descending adjacent pair (if the two are adjacent) or two descending pairs (if not). The first offender is the larger of the first pair; the second offender is the smaller of the last pair.</p>
+  <p><strong>Piece B (track state on the side, Lesson 16):</strong> rather than build the array, do an inorder walk carrying <code>prev</code> (the previously visited node) and capture <code>first</code> and <code>second</code> as side-state the moment you detect a descent — exactly the "return nothing, update a global on the side" rhythm from tree DFS.</p>
+  <pre><code>def recoverTree(root):
+    first = second = prev = None
+    def inorder(node):
+        nonlocal first, second, prev
+        if not node: return
+        inorder(node.left)
+        if prev and prev.val > node.val:     # a descent in sorted order
+            if not first: first = prev        # larger of first bad pair
+            second = node                     # smaller of last bad pair
+        prev = node
+        inorder(node.right)
+    inorder(root)
+    first.val, second.val = second.val, first.val</code></pre>
+  <p>The Hard = (inorder gives a sorted stream) + (detect the two break points) + (capture them as DFS side-state). All pieces you already own. <strong>Name the pieces and the Hard stops being hard.</strong></p>
+</details>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If you're not sure whether a BST problem wants the inorder-sorted view or the discard-a-subtree navigation, bring me the problem — picking the right superpower is the whole game here, and I'll show you how to tell.
+</div>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — BST Patterns</h2>
+<p>The compressed version. A 2-minute re-read should reload the whole pattern.</p>
+
+<h3>When to use it, and why</h3>
+<p>Triggered the instant a problem says "binary search tree". Two superpowers: (1) an inorder traversal yields values in sorted order, so anything easy on a sorted array is easy on a BST via inorder, often in O(h) space by tracking only the previous value or a count; (2) comparing your target to a node discards one whole subtree, so search/insert/delete/LCA/closest run in O(h). They work because the left &lt; node &lt; right invariant is structural sortedness — inorder linearizes it, and the per-node comparison is binary search inside the tree.</p>
+
+<h3>The two reflex questions on any BST problem</h3>
+<ul>
+  <li>Does reading the tree <strong>inorder (sorted)</strong> answer it? (kth smallest, validate, min diff, recover, range)</li>
+  <li>Can I <strong>discard a subtree</strong> at each node by comparing to a target? (search, insert, delete, LCA, closest, floor/ceiling)</li>
+</ul>
+
+<h3>Templates</h3>
+<pre><code># inorder as sorted stream (O(h) space, track prev)
+prev = -inf
+def inorder(node):
+    if not node: return
+    inorder(node.left)
+    visit(node.val, prev); prev = node.val   # compare to previous
+    inorder(node.right)
+
+# navigate by comparison (search), O(h)
+while node and node.val != target:
+    node = node.left if target < node.val else node.right</code></pre>
+
+<h3>Watch out</h3>
+<p>An unbalanced BST degrades O(h) to O(n). A plain binary tree with no ordering promise means none of this applies — use Lesson 16/17 instead.</p>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> NeetCode's BST videos — <a href="https://neetcode.io/courses">neetcode.io/courses</a> — and the LeetCode official editorials for Validate BST and Recover BST, which both lead with the inorder-sorted insight.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 17: Tree BFS</span>
+  <span>Next: Lesson 19 — Trie Patterns →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 15 — Backtracking (one template for subsets, permutations, and grids)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 3 · Recursion-driven patterns</p>
+<span class="lesson-no">Lesson 15 of the course</span>
+<h1>Backtracking — deriving the one template behind subsets, permutations, and N-Queens</h1>
+
+<p>Backtracking looks like many different tricks — subsets, permutations, combinations, Sudoku, word search. It is actually <strong>one template</strong>. By the end you'll derive that template from scratch and see how every "generate/enumerate all valid X" problem is the same do / recurse / undo loop with different choices and a different validity check.</p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Warm-up — recall from earlier lessons (no peeking)</h2>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. In recursion (Lesson 14), when the answer is "many enumerated things" rather than one value, how do you capture results?</div>
+  <button class="opt" data-correct="false" data-fb="Returning one combined value is the OTHER flavor — used for a sum/depth/count, not for enumerating many candidates.">Return a combined value up to the parent</button>
+  <button class="opt" data-correct="true" data-fb="Right — accumulate into a shared result list, recording a COPY of the path at the base case (Lesson 14).">Accumulate into a shared result list</button>
+  <button class="opt" data-correct="false" data-fb="Prefix sums answer range-sum queries; they have nothing to do with enumerating candidates.">Build a prefix-sum array</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. A constraint says n ≤ 20 and asks you to try combinations of choices. What complexity is that hinting you can afford?</div>
+  <button class="opt" data-correct="true" data-fb="Yes — n ≤ ~20 signals an exponential O(2ⁿ) or O(n!) search is intended, which is exactly backtracking's cost.">Exponential, roughly O(2ⁿ) or O(n!)</button>
+  <button class="opt" data-correct="false" data-fb="O(n log n) is the signal for sorting/binary-search sized inputs (n up to 10⁵–10⁶), not n ≤ 20.">Only O(n log n) is acceptable</button>
+  <button class="opt" data-correct="false" data-fb="Linear is far stricter than n ≤ 20 requires; such a tiny bound invites exponential search.">Strictly O(n)</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving the backtracking template from scratch</h2>
+
+<p>Take the cleanest case: <strong>generate all subsets</strong> of <code>[1, 2, 3]</code>.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Brute force thinking:</strong> there are 2ⁿ subsets, so any correct method is exponential — fine, that's inherent, not waste. The real question is <em>how to systematically produce every subset exactly once without forgetting any.</em></p>
+  <p><strong>The insight:</strong> reframe "pick a subset" as a sequence of <em>independent yes/no decisions</em> — for each element, include it or not. That turns the problem into walking a <strong>decision tree</strong>: at depth i you decide element i. Every root-to-leaf path is one subset. Now recursion (Lesson 14, the accumulate flavor) writes itself: at each element, try "include", recurse, then <em>undo</em> and try "exclude".</p>
+  <pre><code>def subsets(nums):
+    result, path = [], []
+    def backtrack(i):
+        if i == len(nums):          # base: decided every element
+            result.append(list(path))
+            return
+        path.append(nums[i])        # DO: include nums[i]
+        backtrack(i + 1)            # RECURSE on the rest
+        path.pop()                  # UNDO: exclude it
+        backtrack(i + 1)            # RECURSE on the rest without it
+    backtrack(0)
+    return result</code></pre>
+  <p>The <strong>undo</strong> (<code>path.pop()</code>) is the heart of backtracking: it restores state so the next branch explores a clean slate. Without it, the "include" choice would leak into the "exclude" branch and poison every later subset. Everything else — permutations, N-Queens, Sudoku — is this same tree walk with different <em>choices</em> and a <em>pruning check</em> added.</p>
+</div>
+
+<h3>The universal template</h3>
+<p>Once you see subsets as a decision tree, every backtracking problem fits this shape. Only three slots change between problems:</p>
+<pre><code>def backtrack(state, path, result):
+    if is_a_complete_solution(state):     # SLOT 1: when is a path done?
+        result.append(list(path))
+        return
+    for choice in candidates(state):      # SLOT 2: what are the choices here?
+        if not is_valid(choice, path):    # SLOT 3: prune invalid branches early
+            continue
+        path.append(choice)               # do
+        backtrack(advance(state, choice), path, result)   # recurse
+        path.pop()                        # undo
+</code></pre>
+<ul>
+  <li><strong>Slot 1 — completion test:</strong> for subsets it's "decided all elements"; for permutations "path length == n"; for N-Queens "placed a queen in every row".</li>
+  <li><strong>Slot 2 — candidate choices:</strong> for subsets it's include/exclude; for permutations it's "every unused number"; for N-Queens "every column in this row".</li>
+  <li><strong>Slot 3 — pruning:</strong> the step that makes backtracking fast. The moment a partial path can't possibly extend to a valid solution, you <code>continue</code> and skip that entire branch. In N-Queens, if a column or diagonal is already attacked, you never even recurse into it — you prune a whole subtree.</li>
+</ul>
+
+<!-- ============ WHEN & WHY ============ -->
+<h2>When to reach for backtracking, and why it works</h2>
+<p>Reach for backtracking when the problem asks you to <strong>generate or count all valid configurations</strong> — all subsets, all permutations, all combinations summing to a target, all ways to place pieces on a board, all valid partitions of a string. The tell is the word "all" (or "how many ways") combined with building a solution out of a sequence of discrete choices, and a small input bound (often n ≤ 20) that signals an exponential search is intended. It works because it walks the full decision tree of choices, and the undo step guarantees each branch is explored against clean state, so no configuration is produced twice or skipped.</p>
+<p>The reason it is not simply "brute force all 2ⁿ then filter" is <strong>pruning</strong>: by checking validity <em>as you build</em>, you discard impossible branches before exploring them, often cutting the real work far below the worst-case bound. It does <em>not</em> fit when you only need the best single answer under overlapping subproblems — that overlap means dynamic programming (Part 5) will be exponentially faster, because backtracking re-derives the same sub-configurations instead of caching them.</p>
+
+<div class="callout trap">
+  <span class="label">Trap — the copy and the duplicate-skip</span>
+  <p>Two silent bugs ambush beginners. First, <code>result.append(path)</code> instead of <code>result.append(list(path))</code> stores a reference to the one list that keeps mutating — you end up with a result full of identical (usually empty) lists. Always store a copy. Second, when the input has duplicates and the problem wants <em>unique</em> results (Subsets II, Permutations II, Combination Sum II), you must sort first and skip a choice equal to its previous sibling at the same tree level — otherwise you generate the same configuration many times. Matching the dedup rule to the problem is the difference between accepted and "wrong answer".</p>
+</div>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — at least 10, easy → hard</h2>
+<p>Every one of these is the same template with different slots. Solve them; ask me if you get stuck.</p>
+<ol>
+  <li><strong>Subsets</strong> (Medium) — <a href="https://leetcode.com/problems/subsets/">link</a></li>
+  <li><strong>Combinations</strong> (Medium) — <a href="https://leetcode.com/problems/combinations/">link</a></li>
+  <li><strong>Permutations</strong> (Medium) — <a href="https://leetcode.com/problems/permutations/">link</a></li>
+  <li><strong>Combination Sum</strong> (Medium) — <a href="https://leetcode.com/problems/combination-sum/">link</a></li>
+  <li><strong>Subsets II</strong> (Medium — duplicate handling) — <a href="https://leetcode.com/problems/subsets-ii/">link</a></li>
+  <li><strong>Permutations II</strong> (Medium — duplicate handling) — <a href="https://leetcode.com/problems/permutations-ii/">link</a></li>
+  <li><strong>Letter Combinations of a Phone Number</strong> (Medium) — <a href="https://leetcode.com/problems/letter-combinations-of-a-phone-number/">link</a></li>
+  <li><strong>Generate Parentheses</strong> (Medium — pruning by counts) — <a href="https://leetcode.com/problems/generate-parentheses/">link</a></li>
+  <li><strong>Palindrome Partitioning</strong> (Medium) — <a href="https://leetcode.com/problems/palindrome-partitioning/">link</a></li>
+  <li><strong>Word Search</strong> (Medium — backtracking on a grid) — <a href="https://leetcode.com/problems/word-search/">link</a></li>
+  <li><strong>N-Queens</strong> (Hard) — <a href="https://leetcode.com/problems/n-queens/">link</a></li>
+  <li><strong>Sudoku Solver</strong> (Hard) — <a href="https://leetcode.com/problems/sudoku-solver/">link</a></li>
+</ol>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>N-Queens</strong> (Hard 51) — <a href="https://leetcode.com/problems/n-queens/">link</a> — composes the backtracking template (this lesson) with <em>hashing / seen-sets</em> (Lesson 5) for O(1) attack checks. Try it before opening the decomposition.</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p>Place one queen per row (that alone forbids row conflicts). At row r you choose a column; the configuration is valid if no earlier queen shares the column or either diagonal.</p>
+  <p><strong>Piece A (backtracking, this lesson):</strong> the decision tree is "for each row, try each column"; the do/recurse/undo rhythm places a queen, recurses to the next row, then removes it. Completion test: reached a queen in every row.</p>
+  <p><strong>Piece B (hashing / seen-sets, Lesson 5):</strong> the pruning check must be O(1), or the search is hopeless. Keep three sets — used columns, used "r−c" diagonals, used "r+c" anti-diagonals. A column is safe iff none of the three sets contains its keys. That constant-time validity check is pure Lesson-5 seen-set thinking, and it's what prunes whole subtrees instantly.</p>
+  <pre><code>def solveNQueens(n):
+    cols, diag, anti = set(), set(), set()   # seen-sets (Lesson 5)
+    board, result = [], []
+    def backtrack(r):
+        if r == n:
+            result.append(["".join(row) for row in board]); return
+        for c in range(n):
+            if c in cols or (r-c) in diag or (r+c) in anti:  # O(1) prune
+                continue
+            cols.add(c); diag.add(r-c); anti.add(r+c)        # do
+            board.append("." * c + "Q" + "." * (n-c-1))
+            backtrack(r + 1)                                 # recurse
+            board.pop()                                      # undo
+            cols.discard(c); diag.discard(r-c); anti.discard(r+c)
+    backtrack(0)
+    return result</code></pre>
+  <p>The Hard dissolves into: backtracking supplies the tree walk, and seen-sets supply the O(1) conflict test that makes the pruning cheap. <strong>Name the pieces and the Hard stops being hard.</strong></p>
+</details>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If you can't see how a specific problem maps to the three slots (choices, completion, prune), or the duplicate-skip rule is fuzzy, bring me the problem and we'll fill in the slots together.
+</div>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Backtracking</h2>
+<p>The compressed version. A 2-minute re-read should reload the whole pattern.</p>
+
+<h3>When to use it, and why</h3>
+<p>Use when the problem asks for <strong>all</strong> (or the count of) valid configurations built from a sequence of discrete choices — subsets, permutations, combinations, board placements, string partitions — usually with a small bound (n ≤ ~20) signalling an exponential search is intended. It works by walking the full decision tree; the undo step keeps each branch's state clean so nothing is produced twice or missed, and the validity check prunes impossible branches before exploring them.</p>
+
+<h3>The universal template — three slots change</h3>
+<pre><code>def backtrack(state, path, result):
+    if is_complete(state):
+        result.append(list(path)); return   # store a COPY
+    for choice in candidates(state):
+        if not is_valid(choice, path): continue   # prune
+        path.append(choice)      # do
+        backtrack(advance(state, choice), path, result)  # recurse
+        path.pop()               # undo</code></pre>
+<p>Slot 1 = completion test. Slot 2 = candidate choices here. Slot 3 = pruning check (the speed-up).</p>
+
+<h3>Two traps</h3>
+<p>Store <code>list(path)</code>, not <code>path</code> (reference bug). For unique results with duplicate inputs, sort first and skip a choice equal to its previous sibling at the same level.</p>
+
+<h3>Not this pattern when…</h3>
+<p>You only need the single best answer and subproblems overlap — that's dynamic programming (Part 5), which caches instead of re-deriving.</p>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> the "subsets as a decision tree + one template" framing is clearest in NeetCode's backtracking playlist — <a href="https://neetcode.io/courses">neetcode.io/courses</a>. For the three-set N-Queens trick, read the LeetCode official N-Queens editorial.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 14: Recursion Templates</span>
+  <span>Next: Lesson 16 — Tree DFS →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
