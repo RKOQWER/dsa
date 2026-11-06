@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 40 — Tree Construction &amp; Serialization</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 3 · Recursion-driven patterns</p>
+<span class="lesson-no">Lesson 40 of the course</span>
+<h1>Tree construction &amp; serialization — rebuild a tree from its traversal</h1>
+
+<p>Traversal flattens a tree into a sequence (Lessons 16, 17, 38). This lesson runs the arrow backwards: given the sequence, reconstruct the tree — and, more generally, encode a tree to a string and decode it back. Two facts do all the work: in any traversal, the position of the root tells you where the left and right halves split; and a traversal that records nulls is <em>self-delimiting</em>, so a single left-to-right pass can rebuild the exact shape. Master these and "construct from preorder and inorder" and "serialize/deserialize" stop being separate tricks and become one idea seen from two sides.</p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Warm-up — recall from earlier lessons (no peeking)</h2>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. From Lesson 16, in a PREORDER traversal (node, left, right), which element is always the root of the whole tree (or subtree)?</div>
+  <button class="opt" data-correct="true" data-fb="Right — the first element, because preorder visits the node before either subtree. That is the hook: the first preorder value is the root, and everything after it splits into left then right.">The first element</button>
+  <button class="opt" data-correct="false" data-fb="The last element is the root in POSTORDER (left, right, node), not preorder. Keep the two straight — which end holds the root flips between them.">The last element</button>
+  <button class="opt" data-correct="false" data-fb="The middle element is the root only in a balanced sorted-array-to-BST build, not in a general preorder sequence.">The middle element</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. From Lesson 17, a level-order (BFS) traversal visits nodes top-to-bottom, left-to-right. Why is it a natural choice for serializing a tree?</div>
+  <button class="opt" data-correct="true" data-fb="Right — a queue processes nodes in a fixed order and you can emit a null marker for each missing child, so decoding re-reads the same order and attaches children as they come. It is self-delimiting just like preorder-with-nulls.">It emits nodes in a fixed order; recording nulls for missing children makes the string self-delimiting to decode</button>
+  <button class="opt" data-correct="false" data-fb="Level-order does not sort values (that is BST inorder, Lesson 18); the usefulness for serialization is its fixed, reproducible visiting order, not sorting.">Because it outputs the values in sorted order</button>
+  <button class="opt" data-correct="false" data-fb="Level-order uses a queue and O(width) memory, not less memory than DFS in general; its serialization value is ordering, not space.">Because it always uses less memory than DFS</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving construction from preorder + inorder</h2>
+
+<p>Take <strong>build a binary tree from its preorder and inorder sequences</strong>. Neither sequence alone is enough (many trees share a preorder), but together they pin down one unique tree. The derivation is to ask what each sequence tells you.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Preorder gives you the root; inorder gives you the split.</strong> Preorder is (node, left, right), so its <em>first</em> value is the root. Inorder is (left, node, right), so once you know the root's value, its <em>position</em> in the inorder sequence separates everything to its left (the entire left subtree) from everything to its right (the entire right subtree). The count of elements on the left tells you how many of the following preorder values belong to the left subtree; the rest belong to the right.</p>
+  <ul>
+    <li>Take the next preorder value as the current root.</li>
+    <li>Find it in inorder; the elements before it are the left subtree, the elements after are the right subtree.</li>
+    <li>Recurse: build the left subtree from the matching preorder/inorder slices, then the right. Preorder is consumed strictly left to right, so a single moving index over preorder suffices.</li>
+  </ul>
+  <pre><code>def buildTree(preorder, inorder):
+    idx = {v: i for i, v in enumerate(inorder)}   # O(1) root lookups
+    self_pre = iter(preorder)
+    def build(lo, hi):                            # inorder range [lo, hi)
+        if lo >= hi: return None
+        val = next(self_pre)                       # next preorder value = this root
+        root = TreeNode(val)
+        mid = idx[val]                             # its split point in inorder
+        root.left  = build(lo, mid)                # left subtree first (preorder order!)
+        root.right = build(mid + 1, hi)
+        return root
+    return build(0, len(inorder))</code></pre>
+  <p><strong>The insight (= the pattern):</strong> one sequence names the roots in the order you need them (preorder for top-down, postorder consumed from the <em>end</em> for the same effect), and a second sequence (inorder) tells you, for each root, how to split the remaining elements into its two subtrees. Construction is just traversal read in reverse: instead of flattening a tree into an order, you let the order dictate the tree.</p>
+</div>
+
+<h3>The two gotchas that flip the template</h3>
+<ul>
+  <li><strong>Preorder + postorder is NOT always unique</strong> (a node with a single child is ambiguous), so that variant only reconstructs <em>one valid</em> tree and uses a different split rule — a reminder to always check which two orders you are given.</li>
+  <li><strong>Postorder consumed from the end behaves like preorder reversed:</strong> if you build from inorder + postorder, read postorder right-to-left and build the <em>right</em> subtree before the left, mirroring the template above.</li>
+</ul>
+
+<!-- ============ SERIALIZATION ============ -->
+<h2>Serialization: encode so decode is unambiguous</h2>
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Why a plain preorder string fails, and the one fix.</strong> If you serialize a tree as its preorder values with no markers, you cannot decode it — "1 2 3" could be many shapes, because you never recorded <em>where the nulls were</em>. The fix is to make the encoding self-delimiting: emit a marker (say <code>#</code>) for every null child. Now preorder is reversible, because the moment you read a <code>#</code> you know that branch ended, so a single left-to-right cursor rebuilds the exact shape.</p>
+  <pre><code>MARK = '#'
+def serialize(root):
+    out = []
+    def pre(node):
+        if not node:
+            out.append(MARK); return            # record the null
+        out.append(str(node.val))
+        pre(node.left); pre(node.right)
+    pre(root)
+    return ','.join(out)
+
+def deserialize(data):
+    vals = iter(data.split(','))
+    def build():
+        v = next(vals)
+        if v == MARK: return None               # a recorded null ends this branch
+        node = TreeNode(int(v))
+        node.left = build(); node.right = build()
+        return node
+    return build()</code></pre>
+  <p><strong>The insight (= the pattern):</strong> encode and decode must agree on one order and on recording nulls. Preorder-with-nulls is the compact DFS codec; a level-order (BFS) codec with null markers is the common alternative and the one most interviewers expect to see — same principle, a queue instead of recursion. The deserialize is literally the construction derivation from above with the nulls handed to you explicitly rather than inferred from a second sequence.</p>
+</div>
+
+<!-- ============ WHEN & WHY ============ -->
+<h2>When to reach for this pattern, and why it works</h2>
+<p>Reach for construction when you are <em>handed</em> one or more traversal sequences and asked to produce the tree, and for serialization when you must persist, transmit, or hash a tree and later rebuild it exactly (the classic "design a codec" problem, and the backbone of "find duplicate subtrees" where each subtree's serialization is its identity). It works because a traversal is a lossless linearization <em>as long as structure is recoverable</em>: either a second sequence supplies the left/right split (construction from two orders), or null markers supply it directly (serialization) — and in both cases a single recursive pass that consumes the sequence in its own order rebuilds each node before its children, giving O(n) time with an index map for O(1) root lookups.</p>
+<p>The discrimination to make under pressure is <em>which</em> sequences you hold and whether they determine a unique tree. Inorder + (preorder or postorder) is unique; preorder + postorder is not. If you are building from a sorted array into a balanced BST, there is no second sequence at all — you pick the middle as root for balance (a different problem, closer to Lesson 18). Name the inputs first; the template follows from them.</p>
+
+<!-- ============ TEMPLATE ============ -->
+<h2>The template</h2>
+<pre><code># Construct from preorder + inorder (unique) — O(n) with an index map
+def buildTree(preorder, inorder):
+    idx = {v: i for i, v in enumerate(inorder)}
+    it = iter(preorder)
+    def build(lo, hi):
+        if lo >= hi: return None
+        root = TreeNode(next(it))
+        mid = idx[root.val]
+        root.left  = build(lo, mid)
+        root.right = build(mid + 1, hi)
+        return root
+    return build(0, len(inorder))
+
+# Serialize / deserialize — preorder with null markers (self-delimiting)
+MARK = '#'
+def serialize(root):
+    out = []
+    def pre(n):
+        out.append(MARK if not n else str(n.val))
+        if n: pre(n.left); pre(n.right)
+    pre(root); return ','.join(out)
+
+def deserialize(data):
+    vals = iter(data.split(','))
+    def build():
+        v = next(vals)
+        if v == MARK: return None
+        n = TreeNode(int(v)); n.left = build(); n.right = build(); return n
+    return build()
+</code></pre>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — at least 10, easy → hard</h2>
+<p>For each, name the inputs and whether they uniquely determine the tree before writing code.</p>
+<ol>
+  <li><strong>Construct Binary Tree from Preorder and Inorder Traversal</strong> (Medium) — <a href="https://leetcode.com/problems/construct-binary-tree-from-preorder-and-inorder-traversal/">link</a></li>
+  <li><strong>Construct Binary Tree from Inorder and Postorder Traversal</strong> (Medium — postorder from the end) — <a href="https://leetcode.com/problems/construct-binary-tree-from-inorder-and-postorder-traversal/">link</a></li>
+  <li><strong>Convert Sorted Array to Binary Search Tree</strong> (Easy — middle as root, no second sequence) — <a href="https://leetcode.com/problems/convert-sorted-array-to-binary-search-tree/">link</a></li>
+  <li><strong>Construct Binary Search Tree from Preorder Traversal</strong> (Medium — BST bounds replace inorder) — <a href="https://leetcode.com/problems/construct-binary-search-tree-from-preorder-traversal/">link</a></li>
+  <li><strong>Serialize and Deserialize BST</strong> (Medium — compacter, use BST order) — <a href="https://leetcode.com/problems/serialize-and-deserialize-bst/">link</a></li>
+  <li><strong>Verify Preorder Serialization of a Binary Tree</strong> (Medium — slot-counting) — <a href="https://leetcode.com/problems/verify-preorder-serialization-of-a-binary-tree/">link</a></li>
+  <li><strong>Construct Binary Tree from Preorder and Postorder Traversal</strong> (Medium — the non-unique case) — <a href="https://leetcode.com/problems/construct-binary-tree-from-preorder-and-postorder-traversal/">link</a></li>
+  <li><strong>Construct String from Binary Tree</strong> (Easy — a serialization variant) — <a href="https://leetcode.com/problems/construct-string-from-binary-tree/">link</a></li>
+  <li><strong>Find Duplicate Subtrees</strong> (Medium — serialization as subtree identity) — <a href="https://leetcode.com/problems/find-duplicate-subtrees/">link</a></li>
+  <li><strong>Serialize and Deserialize Binary Tree</strong> (Hard — the general codec) — <a href="https://leetcode.com/problems/serialize-and-deserialize-binary-tree/">link</a></li>
+  <li><strong>Serialize and Deserialize N-ary Tree</strong> (Hard — record child counts) — <a href="https://leetcode.com/problems/serialize-and-deserialize-n-ary-tree/">link</a></li>
+  <li><strong>Maximum Binary Tree</strong> (Medium — build from a split rule, not a traversal) — <a href="https://leetcode.com/problems/maximum-binary-tree/">link</a></li>
+</ol>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>Serialize and Deserialize Binary Tree</strong> (Hard 297) — <a href="https://leetcode.com/problems/serialize-and-deserialize-binary-tree/">link</a> — composes the self-delimiting preorder encoding (this lesson) with the construction-from-a-single-cursor idea (this lesson) and a traversal choice (Lessons 16/17).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The ask:</strong> design <code>serialize(root) -&gt; str</code> and <code>deserialize(str) -&gt; root</code> that round-trip any binary tree (arbitrary values, arbitrary shape) exactly.</p>
+  <p><strong>Piece A — a self-delimiting traversal (this lesson):</strong> choose preorder and emit a null marker for every missing child. This is the only addition over a plain traversal, and it is what makes decoding unambiguous — the markers record exactly where each branch ends.</p>
+  <p><strong>Piece B — decode = construction with a single moving cursor (this lesson):</strong> read the tokens left to right; a value becomes a node whose left and right are built by recursive calls that consume the next tokens, and a marker returns null. This is identical to construction from preorder + inorder, except the nulls are given to you explicitly instead of inferred from inorder, so you need only one sequence.</p>
+  <p><strong>The traversal choice (Lessons 16/17):</strong> DFS preorder-with-nulls is compact and recursive; an interviewer may ask for the BFS/level-order codec instead — same principle, a queue emitting a marker per missing child, decoded by re-reading the queue order. Either is accepted; know both exist.</p>
+  <p>The Hard = (preorder + null markers to make the string reversible) + (one-cursor recursive rebuild). Both are this lesson; the only judgment call is which traversal order to encode in. <strong>Name the pieces and the Hard stops being hard.</strong></p>
+</details>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If a construction comes out wrong, tell me which two sequences you were given and where you placed the subtree split — the split index is the whole algorithm, and off-by-one on it is the single most common bug here. This is the last pattern lesson; from here we move to interleaved cold-problem sets and mock mode.
+</div>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Tree construction &amp; serialization</h2>
+<p>The compressed version. A 2-minute re-read should reload the whole pattern.</p>
+
+<h3>When to use it, and why</h3>
+<p>Construction: you are handed traversal sequence(s) and must produce the tree. Serialization: you must persist/transmit/hash a tree and rebuild it exactly (codec, duplicate-subtree identity). Works because a traversal is lossless when structure is recoverable — a second sequence supplies the left/right split, or null markers supply it directly — and one recursive pass consuming the sequence in its own order rebuilds each node before its children, O(n).</p>
+
+<h3>The two facts</h3>
+<ul>
+  <li><strong>Root position gives the split:</strong> preorder's first (or postorder's last) value is the root; its index in inorder splits left vs right subtree.</li>
+  <li><strong>Recording nulls makes a single order reversible:</strong> preorder-with-null-markers (or BFS-with-markers) is self-delimiting, so one left-to-right cursor rebuilds the shape.</li>
+</ul>
+
+<h3>Uniqueness check (do this first)</h3>
+<p>Inorder + preorder or inorder + postorder = unique. Preorder + postorder = NOT unique. Sorted array into balanced BST = no second sequence, pick the middle.</p>
+
+<h3>Templates</h3>
+<pre><code># construct: root = next(preorder); mid = idx[root.val]; build(lo,mid); build(mid+1,hi)
+# serialize: preorder, emit '#' for null
+# deserialize: read token; '#' -> None; else node, then build left, build right</code></pre>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> NeetCode covers construct-from-traversal and serialize/deserialize — <a href="https://neetcode.io/courses">neetcode.io/courses</a>. The LeetCode official editorial for 297 shows both the DFS-with-markers and BFS codecs side by side.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 39: Morris Traversal &amp; In-place Tree Tricks</span>
+  <span>Course complete — move to interleaving / mock mode in chat.</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

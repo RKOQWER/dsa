@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 39 — Morris Traversal &amp; In-place Tree Tricks</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 3 · Recursion-driven patterns</p>
+<span class="lesson-no">Lesson 39 of the course</span>
+<h1>Morris traversal — O(1)-space inorder by borrowing null pointers</h1>
+
+<p>The iterative traversal of Lesson 38 removed recursion but still paid O(h) memory for its stack. Morris traversal removes that too: it walks a binary tree in inorder using O(1) extra space, by temporarily rewiring the unused null right-pointers of leaves into "threads" that point back to the next node to visit — then undoing each thread as it is used. The same borrow-and-restore discipline powers a small family of "O(1)-space tree" follow-ups: flattening a tree to a list, and populating next-right pointers level by level. This is almost always asked as a follow-up — "now do it without the stack" — so recognize it as the final squeeze on space, not a first resort.</p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Warm-up — recall from earlier lessons (no peeking)</h2>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. In Lesson 38, the iterative inorder used an explicit stack. How much extra space did that stack cost in the worst case?</div>
+  <button class="opt" data-correct="true" data-fb="Right — O(h), the height, because the stack holds at most one full left-spine of ancestors. Morris traversal is the technique that drives even this O(h) down to O(1).">O(h), the height of the tree (one left-spine of ancestors)</button>
+  <button class="opt" data-correct="false" data-fb="O(1) is exactly what the stack version did NOT achieve — that is the gap Morris closes.">O(1), constant</button>
+  <button class="opt" data-correct="false" data-fb="O(n) would mean storing every node at once; the left-spine stack is bounded by height, not node count.">O(n), every node at once</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. From Lesson 18, what is the inorder predecessor of a node that has a left child?</div>
+  <button class="opt" data-correct="true" data-fb="Right — the rightmost node of its left subtree. Morris threads that predecessor's right pointer back to the current node, which is exactly how it finds its way back up without a stack.">The rightmost node of its left subtree</button>
+  <button class="opt" data-correct="false" data-fb="The leftmost node of the left subtree is the inorder-FIRST of that subtree, not the predecessor of the current node.">The leftmost node of its left subtree</button>
+  <button class="opt" data-correct="false" data-fb="The parent is not generally the inorder predecessor; the predecessor is the rightmost node of the left subtree.">Its parent</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving Morris traversal from the stack's job</h2>
+
+<p>Take <strong>inorder traversal in O(1) space</strong>. Ask precisely what the stack was <em>for</em>: after finishing a node's left subtree, you need a way back to the node so you can visit it and turn right. The stack stored that return address. Morris's idea: store the return address <em>in the tree itself</em>, using a pointer that is otherwise null.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>The observation:</strong> when a node has a left child, the last node its left subtree visits in inorder is that subtree's <em>rightmost</em> node — the inorder predecessor — and that rightmost node's <code>right</code> pointer is null (that is what makes it rightmost). That null pointer is free real estate: thread it to point back at the current node, and when the left subtree's traversal falls off its rightmost end, it lands exactly where it needs to be.</p>
+  <p><strong>The algorithm, standing at <code>cur</code>:</strong></p>
+  <ul>
+    <li>If <code>cur</code> has <em>no</em> left child, visit <code>cur</code> and move right (nothing to the left to do first).</li>
+    <li>If <code>cur</code> has a left child, find its inorder predecessor (go left once, then right until the right pointer is null or loops back to <code>cur</code>). Then:
+      <ul>
+        <li>If the predecessor's right is <em>null</em>, this is the first time down: <strong>create the thread</strong> (<code>pred.right = cur</code>) and move left — you will come back here later.</li>
+        <li>If the predecessor's right already points to <code>cur</code>, you have returned via the thread: <strong>remove the thread</strong> (<code>pred.right = None</code>) to restore the tree, visit <code>cur</code>, and move right.</li>
+      </ul>
+    </li>
+  </ul>
+  <pre><code>def morris_inorder(root):
+    out, cur = [], root
+    while cur:
+        if not cur.left:
+            out.append(cur.val)        # visit
+            cur = cur.right
+        else:
+            pred = cur.left            # find inorder predecessor
+            while pred.right and pred.right is not cur:
+                pred = pred.right
+            if pred.right is None:
+                pred.right = cur        # THREAD created: remember the way back
+                cur = cur.left
+            else:
+                pred.right = None       # THREAD removed: tree restored
+                out.append(cur.val)     # visit on the way back up
+                cur = cur.right
+    return out</code></pre>
+  <p><strong>The insight (= the pattern):</strong> the stack's return address becomes a temporary edge inside the tree. Each left-having node is reached twice — once going down (thread created, go left) and once coming back (thread removed, visit, go right) — so the tree is left <em>exactly as it started</em>, and the extra space is a single <code>pred</code> pointer: O(1). Each edge is walked at most a constant number of times, so the total time is still O(n).</p>
+</div>
+
+<p><strong>The transferable shape:</strong> Morris is one instance of a broader move — <em>when you need to remember a position in a tree but cannot afford a stack, reuse pointers the tree is not currently using to encode that memory, then restore them.</em> Flattening a tree to a linked list and populating next-right pointers are the same discipline: relink existing pointers in place, in O(1) space, using structure the tree already provides.</p>
+
+<!-- ============ THE SIBLING TRICKS ============ -->
+<h2>The sibling tricks: in-place relinking in O(1) space</h2>
+<ul>
+  <li><strong>Flatten Binary Tree to Linked List.</strong> You want the tree rewired into a right-leaning "list" in preorder. The O(1) trick is pure Morris-flavored relinking: for each node that has a left child, find that left subtree's rightmost node, splice the node's current right subtree onto it, then move the left subtree to the right and null the left. Walk right and repeat. No stack, no recursion — you reuse the rightmost-of-left-subtree idea exactly as Morris does.</li>
+  <li><strong>Populate Next Right Pointers (perfect tree, then any tree).</strong> You want each node's <code>next</code> to point to the node on its right at the same level. The O(1) trick uses the <code>next</code> pointers you have already established on the current level to walk across it like a linked list, wiring up the children on the level below as you go — so the previous level becomes the "stack" that threads you across the next. Same principle: the structure you have built so far encodes the traversal state, costing no extra memory.</li>
+</ul>
+
+<!-- ============ WHEN & WHY ============ -->
+<h2>When to reach for Morris, and why it works</h2>
+<p>Reach for Morris specifically when a traversal problem imposes an <strong>O(1) extra-space</strong> requirement — most often phrased as a follow-up after you have given the recursive or stack answer ("can you do it without recursion and without a stack?"). The canonical targets are inorder traversal, validating a BST, kth-smallest, and recovering a BST, all under constant space. It works because a binary tree is full of null pointers that carry no information, and the one piece of state a stack-free traversal needs — "how do I get back up after finishing a subtree?" — can be stored in exactly those null slots and then wiped clean, so the tree is unchanged when you finish and you never allocate memory that grows with the input.</p>
+<p>Do <em>not</em> open with Morris. It is finicky — the predecessor search, the create-vs-remove branch, and restoring every thread are all easy to get subtly wrong, and a buggy Morris corrupts the input tree. Give the clean recursive (Lesson 16) or stack (Lesson 38) solution first, state its space cost, and reach for Morris only when the O(1) constraint genuinely demands it. Also note Morris temporarily <em>mutates</em> the tree during the walk, which rules it out if the tree may be read concurrently.</p>
+
+<!-- ============ TEMPLATE ============ -->
+<h2>The template</h2>
+<pre><code># Morris inorder (above) — the core skeleton you adapt
+def morris(root, visit):
+    cur = root
+    while cur:
+        if not cur.left:
+            visit(cur); cur = cur.right
+        else:
+            pred = cur.left
+            while pred.right and pred.right is not cur:
+                pred = pred.right
+            if pred.right is None:
+                pred.right = cur; cur = cur.left        # go down, leave a thread
+            else:
+                pred.right = None; visit(cur); cur = cur.right   # came back: untie, visit, go right
+
+# Flatten Binary Tree to Linked List — O(1) space, in-place relink (Morris-flavored)
+def flatten(root):
+    cur = root
+    while cur:
+        if cur.left:
+            pred = cur.left
+            while pred.right:               # rightmost node of the left subtree
+                pred = pred.right
+            pred.right = cur.right           # splice current right subtree onto it
+            cur.right = cur.left             # move left subtree to the right
+            cur.left = None
+        cur = cur.right
+
+# Populate Next Right Pointers II — O(1) space, walk each level via the next links you built
+def connect(root):
+    cur = root
+    while cur:
+        dummy = Node(0)                      # head of the next level being built
+        tail = dummy
+        while cur:                           # walk the current level like a linked list
+            if cur.left:  tail.next = cur.left;  tail = tail.next
+            if cur.right: tail.next = cur.right; tail = tail.next
+            cur = cur.next
+        cur = dummy.next                     # drop to the level we just linked
+</code></pre>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — at least 10, easy → hard</h2>
+<p>For each, first give the recursive or stack answer and its space cost, then convert to O(1) space. Verify the tree is unchanged after a Morris walk.</p>
+<ol>
+  <li><strong>Binary Tree Inorder Traversal</strong> (Easy — do the Morris O(1) version) — <a href="https://leetcode.com/problems/binary-tree-inorder-traversal/">link</a></li>
+  <li><strong>Binary Tree Preorder Traversal</strong> (Easy — Morris preorder: visit when creating the thread) — <a href="https://leetcode.com/problems/binary-tree-preorder-traversal/">link</a></li>
+  <li><strong>Flatten Binary Tree to Linked List</strong> (Medium — O(1) in-place relink) — <a href="https://leetcode.com/problems/flatten-binary-tree-to-linked-list/">link</a></li>
+  <li><strong>Populate Next Right Pointers in Each Node</strong> (Medium — perfect tree) — <a href="https://leetcode.com/problems/populating-next-right-pointers-in-each-node/">link</a></li>
+  <li><strong>Populate Next Right Pointers in Each Node II</strong> (Medium — any tree, O(1)) — <a href="https://leetcode.com/problems/populating-next-right-pointers-in-each-node-ii/">link</a></li>
+  <li><strong>Kth Smallest Element in a BST</strong> (Medium — Morris inorder with a counter) — <a href="https://leetcode.com/problems/kth-smallest-element-in-a-bst/">link</a></li>
+  <li><strong>Validate Binary Search Tree</strong> (Medium — Morris inorder, check increasing) — <a href="https://leetcode.com/problems/validate-binary-search-tree/">link</a></li>
+  <li><strong>Minimum Absolute Difference in BST</strong> (Easy — Morris inorder adjacency) — <a href="https://leetcode.com/problems/minimum-absolute-difference-in-bst/">link</a></li>
+  <li><strong>Recover Binary Search Tree</strong> (Medium — the O(1)-space showcase below) — <a href="https://leetcode.com/problems/recover-binary-search-tree/">link</a></li>
+  <li><strong>Binary Tree Postorder Traversal</strong> (Hard via Morris — the trickiest order) — <a href="https://leetcode.com/problems/binary-tree-postorder-traversal/">link</a></li>
+  <li><strong>Convert Binary Search Tree to Sorted Doubly Linked List</strong> (Medium — inorder relink) — <a href="https://leetcode.com/problems/convert-binary-search-tree-to-sorted-doubly-linked-list/">link</a></li>
+  <li><strong>Increasing Order Search Tree</strong> (Easy — inorder relink to a right-only chain) — <a href="https://leetcode.com/problems/increasing-order-search-tree/">link</a></li>
+</ol>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>Recover Binary Search Tree in O(1) space</strong> (Medium 99, hard under the space constraint) — <a href="https://leetcode.com/problems/recover-binary-search-tree/">link</a> — composes Morris inorder (this lesson) with the "two swapped elements break sortedness" detection you already derived in the BST lesson's composition (Lesson 18).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The ask:</strong> exactly two nodes of a valid BST were swapped; restore it without changing structure, using O(1) extra space. You solved the O(h)-space version in Lesson 18 with a recursive inorder carrying <code>prev</code>; the follow-up removes even that stack.</p>
+  <p><strong>Piece A — detect the two offenders in a sorted stream (Lesson 18):</strong> inorder of a valid BST is strictly increasing; two swapped values create either one descending adjacent pair (if adjacent) or two (if not). The first offender is the larger of the first descent; the second offender is the smaller of the last descent. Capture them in two side variables <code>first</code> and <code>second</code>, comparing each visited value to the previous one.</p>
+  <p><strong>Piece B — supply the inorder stream with O(1) space (this lesson):</strong> replace the recursive/stack inorder with a Morris inorder. At each "visit" step, run the same <code>prev</code> comparison and update <code>first</code>/<code>second</code>. Because Morris restores every thread, the tree is intact when you finish detecting, and you simply swap the two offenders' values at the end.</p>
+  <pre><code>def recoverTree(root):
+    first = second = prev = None
+    cur = root
+    while cur:
+        if not cur.left:
+            if prev and prev.val > cur.val:      # a descent (Lesson 18 logic)
+                if not first: first = prev
+                second = cur
+            prev = cur; cur = cur.right
+        else:
+            pred = cur.left
+            while pred.right and pred.right is not cur:
+                pred = pred.right
+            if pred.right is None:
+                pred.right = cur; cur = cur.left
+            else:
+                pred.right = None
+                if prev and prev.val > cur.val:
+                    if not first: first = prev
+                    second = cur
+                prev = cur; cur = cur.right
+    first.val, second.val = second.val, first.val</code></pre>
+  <p>The Hard = (detect two break points in a sorted stream) + (Morris inorder to produce that stream in O(1) space). Both pieces you already own — the detection is pure Lesson 18, and only the Morris plumbing is new. <strong>Name the pieces and the Hard stops being hard.</strong></p>
+</details>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> Morris is where careful bookkeeping matters most: if your traversal loops forever or corrupts the tree, tell me your predecessor-finding loop condition and your create-vs-remove branch — those two are where every Morris bug lives, and we'll trace one node at a time to find it.
+</div>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Morris &amp; in-place tree tricks</h2>
+<p>The compressed version. A 2-minute re-read should reload the whole pattern.</p>
+
+<h3>When to use it, and why</h3>
+<p>Use Morris when a traversal must run in O(1) extra space — almost always a follow-up after the recursive/stack answer. It works because a tree's null right-pointers are free storage for the one fact a stack-free walk needs (the way back up after a subtree), and threading then un-threading them leaves the tree unchanged. Finicky and mutating during the walk, so never open with it; give the clean answer first.</p>
+
+<h3>The core move</h3>
+<p>For a node with a left child, thread its inorder predecessor (rightmost of the left subtree) back to it. First visit down: create the thread, go left. Second visit (thread already points back): remove the thread, visit, go right. No left child: visit, go right. O(1) space, O(n) time, tree restored.</p>
+
+<h3>The sibling tricks (same discipline)</h3>
+<ul>
+  <li><strong>Flatten to linked list:</strong> splice each node's right subtree onto the rightmost node of its left subtree; move left subtree to the right.</li>
+  <li><strong>Next right pointers:</strong> use the next-links already built on a level to walk across it and wire the level below — the built structure is the traversal state.</li>
+</ul>
+
+<h3>Template (inorder core)</h3>
+<pre><code>cur = root
+while cur:
+    if not cur.left: visit(cur); cur = cur.right
+    else:
+        pred = cur.left
+        while pred.right and pred.right is not cur: pred = pred.right
+        if pred.right is None: pred.right = cur; cur = cur.left
+        else: pred.right = None; visit(cur); cur = cur.right</code></pre>
+
+<h3>Watch out</h3>
+<p>Infinite loop if the predecessor condition drops the <code>is not cur</code> check; corrupted tree if you forget to remove a thread. Morris mutates the tree mid-walk, so it is unsafe for a tree being read concurrently.</p>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> the LeetCode official editorials for Binary Tree Inorder Traversal (94) and Recover BST (99) both derive Morris step by step with diagrams — read those slowly. <a href="https://en.wikipedia.org/wiki/Threaded_binary_tree">Threaded binary tree</a> gives the underlying idea.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 38: Iterative Traversal</span>
+  <span>Next: Lesson 40 — Tree Construction &amp; Serialization →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

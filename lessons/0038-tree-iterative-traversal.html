@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 38 — Iterative Traversal (make the call stack explicit)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 3 · Recursion-driven patterns</p>
+<span class="lesson-no">Lesson 38 of the course</span>
+<h1>Iterative traversal — simulate the recursion stack by hand</h1>
+
+<p>Recursive tree traversal (Lesson 16) hides a stack: the call stack. Three kinds of follow-up force you to make that stack explicit — an interviewer asks for the traversal "without recursion", a problem needs you to <em>pause and resume</em> a traversal between external calls (a tree iterator), or the tree is deep enough that recursion would blow the stack. This lesson shows the one idea behind all three: a loop plus your own stack reproduces exactly what the call stack was doing, and the only thing that changes between preorder, inorder, and postorder is <em>when</em> you record a node relative to pushing its children.</p>
+
+<!-- ============ SPACED RETRIEVAL ============ -->
+<h2>Warm-up — recall from earlier lessons (no peeking)</h2>
+
+<div class="probe" data-answered="0">
+  <div class="q">1. From Lesson 16, what does an inorder traversal visit, in order?</div>
+  <button class="opt" data-correct="true" data-fb="Right — left subtree, then the node, then right subtree. On a BST this yields sorted order (Lesson 18); reproducing it iteratively is the heart of a BST iterator.">Left subtree, then node, then right subtree</button>
+  <button class="opt" data-correct="false" data-fb="That is preorder (node, left, right) — it visits the node before either subtree.">Node, then left subtree, then right subtree</button>
+  <button class="opt" data-correct="false" data-fb="That is postorder (left, right, node) — it visits the node last.">Left subtree, then right subtree, then node</button>
+</div>
+
+<div class="probe" data-answered="0">
+  <div class="q">2. From Lesson 18, the BST Iterator exposed next() and hasNext() over the sorted order. Why can't a plain recursive inorder implement that directly?</div>
+  <button class="opt" data-correct="true" data-fb="Right — recursion runs start to finish in one call; an iterator must PAUSE after each value and resume on the next next() call, which means holding the partial traversal state explicitly between calls.">An iterator must pause between values and resume later, so the traversal state must live outside a single function call</button>
+  <button class="opt" data-correct="false" data-fb="Recursion visits every node just fine; the issue is not coverage, it is that recursion cannot pause and hand control back to the caller between nodes.">Recursion would skip some nodes</button>
+  <button class="opt" data-correct="false" data-fb="Inorder on a BST is sorted regardless of recursive or iterative; sortedness is not the obstacle.">Recursive inorder does not produce sorted order</button>
+</div>
+
+<!-- ============ DERIVATION ============ -->
+<h2>Deriving iterative inorder from the call stack</h2>
+
+<p>Take <strong>inorder traversal without recursion</strong>. The recursive version is three lines: recurse left, visit node, recurse right. The machine runs this on a hidden stack of paused calls — so to remove recursion, you just maintain that stack yourself.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Watch what the call stack actually does.</strong> Recursive inorder, standing at a node, immediately dives left, left, left — pushing a paused call at each step — until it hits <code>None</code>. Only then does the deepest paused call resume, visit its node, and turn right. So the explicit version is: <em>push the entire left spine onto a stack, then pop one, visit it, and move to its right child</em> — at which point you push that right child's left spine, and repeat.</p>
+  <pre><code>def inorder(root):
+    stack, node, out = [], root, []
+    while node or stack:
+        while node:            # push the whole left spine
+            stack.append(node)
+            node = node.left
+        node = stack.pop()     # deepest unvisited node
+        out.append(node.val)   # VISIT here = inorder
+        node = node.right      # then turn right
+    return out</code></pre>
+  <p><strong>The insight (= the pattern):</strong> the stack holds exactly the ancestors whose "visit the node" step has not happened yet — the same frames the call stack would hold. "Dive left pushing, pop and visit, turn right" is the literal unrolling of the recursion. Nothing clever is invented; the recursion is just made visible so you can step it one node at a time.</p>
+</div>
+
+<h3>The three orders differ only in WHEN you record the node</h3>
+<ul>
+  <li><strong>Preorder (node, left, right)</strong> is the easiest iterative traversal: push the root, then loop — pop a node and record it immediately, then push its <em>right</em> child and <em>left</em> child (right first, so left is popped first). Because you record on the way <em>down</em>, you never need the left-spine trick.</li>
+  <li><strong>Inorder (left, node, right)</strong> is the derivation above: record a node only after its entire left subtree is done, i.e. when you pop it.</li>
+  <li><strong>Postorder (left, right, node)</strong> records a node last. The cleanest route is to run a <em>modified preorder</em> that visits node, then right, then left, and reverse the result at the end — because reversed "(node, right, left)" is exactly "(left, right, node)". A one-stack version with a "last visited" pointer also works, but the reverse trick is the one to remember under pressure.</li>
+</ul>
+
+<!-- ============ WHEN & WHY ============ -->
+<h2>When to reach for iterative traversal, and why it works</h2>
+<p>Reach for an explicit stack when a traversal must be <strong>pausable</strong> — the defining case is a tree iterator (<code>next()</code> / <code>hasNext()</code> over inorder), where control returns to the caller between nodes and recursion simply cannot model "stop here and come back." You also reach for it when an interviewer explicitly asks for "no recursion", or when the tree could be pathologically deep (a near-linked-list tree would overflow the language's call stack, and an explicit stack on the heap avoids that). It works because recursion <em>is</em> a stack of paused frames; replacing the implicit call stack with an explicit list you push and pop reproduces the identical visit order, and gives you a handle to freeze and resume the traversal that a recursive function never exposes.</p>
+<p>Do not reach for it by default: when you simply need to walk the whole tree once and compute a value, recursive DFS (Lesson 16) is shorter and clearer, and you should prefer it. The iterative form earns its extra bookkeeping only when pausability, an explicit "no recursion" constraint, or depth safety is actually required.</p>
+
+<!-- ============ TEMPLATE ============ -->
+<h2>The template</h2>
+<pre><code># Preorder — record on the way down
+def preorder(root):
+    if not root: return []
+    stack, out = [root], []
+    while stack:
+        node = stack.pop()
+        out.append(node.val)
+        if node.right: stack.append(node.right)   # push right first...
+        if node.left:  stack.append(node.left)    # ...so left pops first
+    return out
+
+# Inorder — record when popped (after the left spine)
+def inorder(root):
+    stack, node, out = [], root, []
+    while node or stack:
+        while node:
+            stack.append(node); node = node.left
+        node = stack.pop()
+        out.append(node.val)
+        node = node.right
+    return out
+
+# Postorder — modified preorder (node,right,left) then reverse
+def postorder(root):
+    if not root: return []
+    stack, out = [root], []
+    while stack:
+        node = stack.pop()
+        out.append(node.val)
+        if node.left:  stack.append(node.left)    # left first...
+        if node.right: stack.append(node.right)   # ...so right pops first
+    return out[::-1]                              # reverse (node,right,left) -> (left,right,node)
+
+# BST Iterator — a PAUSABLE inorder: the stack IS the saved state between next() calls
+class BSTIterator:
+    def __init__(self, root):
+        self.stack = []
+        self._push_left(root)
+    def _push_left(self, node):
+        while node:
+            self.stack.append(node); node = node.left
+    def next(self):
+        node = self.stack.pop()
+        self._push_left(node.right)   # resume into the right subtree
+        return node.val
+    def hasNext(self):
+        return bool(self.stack)
+</code></pre>
+
+<!-- ============ PRACTICE ============ -->
+<h2>Practice — at least 10, easy → hard</h2>
+<p>For each, say which order you need and whether you must <em>pause</em> between nodes (iterator) or just emit them all. Write the stack version from memory.</p>
+<ol>
+  <li><strong>Binary Tree Inorder Traversal</strong> (Easy, iterative) — <a href="https://leetcode.com/problems/binary-tree-inorder-traversal/">link</a></li>
+  <li><strong>Binary Tree Preorder Traversal</strong> (Easy, iterative) — <a href="https://leetcode.com/problems/binary-tree-preorder-traversal/">link</a></li>
+  <li><strong>Binary Tree Postorder Traversal</strong> (Easy, iterative) — <a href="https://leetcode.com/problems/binary-tree-postorder-traversal/">link</a></li>
+  <li><strong>Binary Search Tree Iterator</strong> (Medium — the pausable inorder) — <a href="https://leetcode.com/problems/binary-search-tree-iterator/">link</a></li>
+  <li><strong>Kth Smallest Element in a BST</strong> (Medium — iterative inorder with early stop) — <a href="https://leetcode.com/problems/kth-smallest-element-in-a-bst/">link</a></li>
+  <li><strong>Validate Binary Search Tree</strong> (Medium — iterative inorder, check increasing) — <a href="https://leetcode.com/problems/validate-binary-search-tree/">link</a></li>
+  <li><strong>Flatten Binary Tree to Linked List</strong> (Medium — preorder via stack) — <a href="https://leetcode.com/problems/flatten-binary-tree-to-linked-list/">link</a></li>
+  <li><strong>Binary Tree Zigzag Level Order Traversal</strong> (Medium — compare to the iterator state idea) — <a href="https://leetcode.com/problems/binary-tree-zigzag-level-order-traversal/">link</a></li>
+  <li><strong>N-ary Tree Postorder Traversal</strong> (Easy — same reverse trick, more children) — <a href="https://leetcode.com/problems/n-ary-tree-postorder-traversal/">link</a></li>
+  <li><strong>Binary Search Tree Iterator II</strong> (Medium — prev() as well as next()) — <a href="https://leetcode.com/problems/binary-search-tree-iterator-ii/">link</a></li>
+  <li><strong>Flatten a Multilevel Doubly Linked List</strong> (Medium — explicit-stack flattening) — <a href="https://leetcode.com/problems/flatten-a-multilevel-doubly-linked-list/">link</a></li>
+  <li><strong>Binary Tree Vertical Order Traversal</strong> (Medium — carry extra state on the stack) — <a href="https://leetcode.com/problems/binary-tree-vertical-order-traversal/">link</a></li>
+</ol>
+
+<!-- ============ COMPOSITION ============ -->
+<h2>Composition — how a Hard is built from this pattern</h2>
+<p><strong>Binary Search Tree Iterator</strong> (Medium 173, but the O(h)-space constraint makes it genuinely hard) — <a href="https://leetcode.com/problems/binary-search-tree-iterator/">link</a> — composes iterative inorder (this lesson) with the BST "inorder = sorted" property (Lesson 18), under a <em>space</em> constraint that rules out the easy answer.</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The ask:</strong> build an iterator over a BST that returns the next-smallest value on each <code>next()</code> call, with <code>next()</code> and <code>hasNext()</code> running in average O(1) and using only O(h) memory (h = tree height).</p>
+  <p><strong>The lazy answer that is disallowed:</strong> inorder the whole tree into a list up front and index through it — that is O(n) space, which the O(h) constraint forbids. The constraint is the whole difficulty.</p>
+  <p><strong>Piece A — inorder = sorted (Lesson 18):</strong> next-smallest means "next in inorder order", so the iterator is really a paused inorder traversal.</p>
+  <p><strong>Piece B — the stack IS the paused state (this lesson):</strong> keep only the left-spine stack from the iterative inorder. At construction, push the left spine of the root — that is at most h nodes, giving O(h) space. Each <code>next()</code> pops the top (the current smallest unvisited node), then pushes the left spine of that node's right child so the next-smallest is ready on top. Across the whole traversal each node is pushed and popped once, so <code>next()</code> is amortized O(1).</p>
+  <p>The Hard = (inorder gives sorted order) + (the explicit left-spine stack as freeze-able traversal state, bounded by height). The O(h) bound falls out for free because a left spine is never longer than the tree's height. <strong>Name the pieces and the Hard stops being hard.</strong></p>
+</details>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If an iterative traversal comes out in the wrong order, tell me where you record the node relative to pushing its children — that single placement is the only thing separating pre-, in-, and postorder, and getting it wrong is where every iterative-traversal bug lives.
+</div>
+
+<!-- ============ REFERENCE CARD ============ -->
+<h2 id="refcard">Reference card — Iterative traversal</h2>
+<p>The compressed version. A 2-minute re-read should reload the whole pattern.</p>
+
+<h3>When to use it, and why</h3>
+<p>Use an explicit stack when a traversal must be pausable (a tree iterator with next()/hasNext()), when "no recursion" is required, or when the tree could be deep enough to overflow the call stack. It works because recursion already runs on a stack of paused frames; maintaining that stack yourself reproduces the identical order and hands you a freeze-and-resume handle recursion never exposes. For a plain one-shot walk, prefer recursive DFS (Lesson 16).</p>
+
+<h3>The one idea</h3>
+<p>A loop plus your own stack = the call stack unrolled. The stack holds the ancestors whose node-visit step has not happened yet.</p>
+
+<h3>Order = when you record the node</h3>
+<ul>
+  <li><strong>Preorder:</strong> record on pop, push right then left. Record on the way down.</li>
+  <li><strong>Inorder:</strong> push the whole left spine, pop+record, turn right. Record after the left subtree.</li>
+  <li><strong>Postorder:</strong> run modified preorder (node, right, left) and reverse the output.</li>
+</ul>
+
+<h3>Template (inorder, and the pausable iterator)</h3>
+<pre><code>stack, node = [], root
+while node or stack:
+    while node: stack.append(node); node = node.left
+    node = stack.pop(); visit(node); node = node.right
+
+# iterator: keep only the stack; next() = pop, then push-left(node.right)</code></pre>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> NeetCode's traversal videos — <a href="https://neetcode.io/courses">neetcode.io/courses</a>. For the postorder reverse trick and the BST-iterator stack, the LeetCode official editorials for problems 145 and 173 are the clearest.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 37: Meet in the Middle</span>
+  <span>Next: Lesson 39 — Morris Traversal &amp; In-place Tree Tricks →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

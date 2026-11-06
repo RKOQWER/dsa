@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 33 — Subsequence-Optimization DP (LIS family)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 5 · Dynamic Programming</p>
+<span class="lesson-no">Lesson 33 of the course</span>
+<h1>Subsequence DP — pick the best subsequence from one array</h1>
+
+<p>A whole class of questions hands you one array and asks you to <em>choose</em> a subsequence (keep some elements, drop the rest, order preserved) that is longest, largest, or maximal under some rule — then return that one best answer. Longest Increasing Subsequence is the archetype, and Longest String Chain, Largest Divisible Subset, Maximum Length of Pair Chain, and Russian Doll Envelopes are all the same shape. The trap is that this looks like the 1D DP of Lesson 27, but its transition does not look back a fixed step or two: it looks back at <em>every</em> earlier index that is allowed to come before the current one.</p>
+
+<!-- SPACED RETRIEVAL -->
+<h2>Warm-up — recall (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. In the 1D DP of Lesson 27 (House Robber), how far back did the transition at position i reach?</div>
+  <button class="opt" data-correct="true" data-fb="Right — a bounded, fixed look-back (i-1 and i-2 only). That bounded reach is exactly what made each state O(1) and the whole scan O(n). This lesson breaks that assumption: the transition will reach back over all earlier indices.">A fixed, bounded number of earlier positions (i-1, i-2)</button>
+  <button class="opt" data-correct="false" data-fb="Not in House Robber — it only looked at i-1 and i-2. The LIS family is the one that scans all earlier positions; that is what makes it a different pattern.">All earlier positions, from 0 up to i-1</button>
+  <button class="opt" data-correct="false" data-fb="A second string's index is String DP (Lesson 30). Here there is only one array.">An index into a second array</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. From Lesson 26, which combine operator gives the LENGTH of a longest valid subsequence?</div>
+  <button class="opt" data-correct="true" data-fb="Right — max, because you want the longest. Swap it for + and the same template counts how many such subsequences exist instead.">max</button>
+  <button class="opt" data-correct="false" data-fb="Addition counts the number of ways; it does not pick a longest. You would use + only if the question asked 'how many longest subsequences.'">addition (+)</button>
+  <button class="opt" data-correct="false" data-fb="or answers feasibility (is it possible), not a longest length.">or</button>
+</div>
+
+<!-- DERIVATION -->
+<h2>Deriving the subsequence shape via LIS</h2>
+<p>Take <strong>Longest Increasing Subsequence</strong>: given an array <code>nums</code>, find the length of the longest subsequence whose values strictly increase (elements kept in their original order, not necessarily contiguous).</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Try to make "ending here" the thing you solve for.</strong> The tempting state <code>dp(i)</code> = "longest increasing subsequence within <code>nums[0..i]</code>" fails, because to extend it you must know the <em>last value</em> you kept, and that single number does not record it. So pin the state to that fact instead: define the state function <code>dp(i)</code> = the length of the longest increasing subsequence that <em>ends exactly at index i</em> (i.e. <code>nums[i]</code> is its final, largest element). Now the last value is <code>nums[i]</code> by construction, which is what makes the transition writable.</p>
+  <p><strong>Find the choice: which element comes just before i in that subsequence?</strong> The element ending at <code>i</code> must be preceded by some earlier index <code>j &lt; i</code> whose value is smaller (<code>nums[j] &lt; nums[i]</code>), or by nothing at all (the subsequence is just <code>nums[i]</code> itself, length 1). You do not know which <code>j</code> is best, so try every eligible one and keep the longest:</p>
+  <pre><code>dp(i) = 1 + max( dp(j) for all j &lt; i with nums[j] &lt; nums[i] )
+      = 1   if no such j exists</code></pre>
+  <p><strong>Compute the DP, then read the answer off all states.</strong> Fill <code>dp(i)</code> for <code>i = 0..n-1</code> left to right; each one scans the earlier indices, so the whole thing is O(n²). The subsequence can end anywhere, so the answer is <code>max(dp)</code> over <em>all</em> i — not <code>dp(n-1)</code>. That last point is the signature of this family: because the state is "ending exactly at i," the final answer is the best over every ending, not the value at the last index.</p>
+</div>
+
+<p><strong>The transferable shape:</strong> a subsequence-optimization DP exists whenever you choose a subsequence of one array under an "is <code>j</code> allowed to precede <code>i</code>?" pairwise rule, and want the best (longest / largest-sum / largest size) such chain. The state is always "best answer ending exactly at i," the transition always scans earlier indices and keeps the ones that satisfy the rule, and the answer is always the best over all endings. Change only the pairwise rule and the quantity you optimize, and the whole family falls out.</p>
+
+<!-- WHEN / WHY -->
+<h2>When to reach for subsequence DP, and why</h2>
+<ul>
+  <li><strong>You are given one array and asked to keep an ordered subset (a subsequence) that is longest, largest, or maximal under a rule relating each kept element to the previous kept one.</strong> Because validity depends on a pairwise relation between a candidate element and its predecessor, you cannot decide element <code>i</code> without knowing what it attaches to — so the state must fix the ending element, and the transition must consider every earlier element that could legally sit before it.</li>
+  <li><strong>The look-back is unbounded: the predecessor could be any earlier index, not just the immediately previous one or two.</strong> This is the line that separates this family from the 1D DP of Lesson 27. In 1D DP the consequence of a choice reached a bounded number of neighbours, giving O(n); here each state scans all earlier states, giving O(n²) — and that extra scan is the price of a pairwise eligibility rule.</li>
+  <li><strong>You must return one optimal value (or reconstruct one optimal subsequence), not count or enumerate all of them.</strong> Keep <code>max</code> for the best length or sum; switch the combine to <code>+</code> only if the question flips to "how many longest ones." If you must output the actual elements, store a parent pointer at each state and walk it back from the best ending — reconstruction, not a different DP.</li>
+</ul>
+
+<!-- TEMPLATE -->
+<h2>The template</h2>
+<pre><code># Longest Increasing Subsequence — O(n^2)
+def lengthOfLIS(nums):
+    n = len(nums)
+    dp = [1] * n                      # dp[i] = longest increasing subseq ENDING at i
+    for i in range(n):
+        for j in range(i):            # scan ALL earlier indices
+            if nums[j] < nums[i]:     # the pairwise eligibility rule
+                dp[i] = max(dp[i], dp[j] + 1)
+    return max(dp)                    # answer is best over ALL endings
+
+# Same template, reconstructing the actual subsequence via parent pointers
+def getLIS(nums):
+    n = len(nums)
+    dp = [1] * n
+    parent = [-1] * n
+    for i in range(n):
+        for j in range(i):
+            if nums[j] < nums[i] and dp[j] + 1 > dp[i]:
+                dp[i], parent[i] = dp[j] + 1, j
+    best = max(range(n), key=lambda i: dp[i])
+    seq = []
+    while best != -1:
+        seq.append(nums[best]); best = parent[best]
+    return seq[::-1]
+
+# O(n log n) LIS length only — patience sorting; keep for interviews, derive separately
+import bisect
+def lengthOfLIS_fast(nums):
+    tails = []                        # tails[k] = smallest tail of an increasing subseq of length k+1
+    for x in nums:
+        i = bisect.bisect_left(tails, x)
+        if i == len(tails): tails.append(x)
+        else: tails[i] = x
+    return len(tails)
+</code></pre>
+
+<!-- PRACTICE -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only. For each, name the pairwise rule "may j precede i?" and the quantity you maximize, then write the O(n²) template before reaching for anything cleverer.</p>
+<ol>
+  <li><strong>Longest Increasing Subsequence</strong> (Medium) — <a href="https://leetcode.com/problems/longest-increasing-subsequence/">link</a></li>
+  <li><strong>Longest Continuous Increasing Subsequence</strong> (Easy, the trap — read below) — <a href="https://leetcode.com/problems/longest-continuous-increasing-subsequence/">link</a></li>
+  <li><strong>Largest Divisible Subset</strong> (Medium) — <a href="https://leetcode.com/problems/largest-divisible-subset/">link</a></li>
+  <li><strong>Maximum Length of Pair Chain</strong> (Medium) — <a href="https://leetcode.com/problems/maximum-length-of-pair-chain/">link</a></li>
+  <li><strong>Longest String Chain</strong> (Medium) — <a href="https://leetcode.com/problems/longest-string-chain/">link</a></li>
+  <li><strong>Russian Doll Envelopes</strong> (Hard) — <a href="https://leetcode.com/problems/russian-doll-envelopes/">link</a></li>
+  <li><strong>Longest Arithmetic Subsequence</strong> (Medium) — <a href="https://leetcode.com/problems/longest-arithmetic-subsequence/">link</a></li>
+  <li><strong>Number of Longest Increasing Subsequence</strong> (Medium — the "+ instead of max" variant) — <a href="https://leetcode.com/problems/number-of-longest-increasing-subsequence/">link</a></li>
+  <li><strong>Longest Increasing Subsequence II</strong> (Hard) — <a href="https://leetcode.com/problems/longest-increasing-subsequence-ii/">link</a></li>
+  <li><strong>Maximum Sum Increasing Subsequence</strong> (max sum, not length) — <a href="https://www.geeksforgeeks.org/maximum-sum-increasing-subsequence-dp-14/">link</a></li>
+  <li><strong>Delete Columns to Make Sorted III</strong> (Hard) — <a href="https://leetcode.com/problems/delete-columns-to-make-sorted-iii/">link</a></li>
+  <li><strong>Make Array Strictly Increasing</strong> (Hard) — <a href="https://leetcode.com/problems/make-array-strictly-increasing/">link</a></li>
+</ol>
+
+<!-- TRAP -->
+<h2>The trap — looks like it, isn't</h2>
+<p><strong>Longest Continuous Increasing Subsequence</strong> (Easy) asks for the longest increasing run of <em>adjacent</em> elements. It reads almost identically to LIS, but "continuous" means the predecessor is forced to be <code>i-1</code> — there is no choice of which earlier index to attach to. That collapses the unbounded scan back to a bounded one-step look-back, so it is a 1D DP (Lesson 27) solvable in O(n), not an O(n²) subsequence DP. The discriminator is one word: if the kept elements must be <em>contiguous</em>, the predecessor is fixed and you are in Lesson 27; if they may be <em>any ordered subset</em>, the predecessor is a choice and you are here.</p>
+
+<!-- COMPOSITION -->
+<h2>Composition — a Hard built from subsequence DP + earlier patterns</h2>
+<p><strong>Russian Doll Envelopes</strong> (Hard) — <a href="https://leetcode.com/problems/russian-doll-envelopes/">link</a>. Composes this subsequence DP with a <strong>sorting reduction</strong> (Part 2) that turns a 2D nesting problem into a 1D LIS.</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The problem:</strong> each envelope has a width and height; one fits inside another only if both its width and height are strictly larger. Find the longest chain of nested envelopes.</p>
+  <p><strong>Pattern A — sort to remove one dimension (Part 2):</strong> sort by width ascending, and for equal widths sort by height <em>descending</em>. After this sort, a valid nesting chain must have strictly increasing height, because the descending-height tiebreak prevents two equal-width envelopes from ever both being chosen in an increasing-height run. The width constraint is now automatically handled by the sort order.</p>
+  <p><strong>Pattern B — LIS on the remaining dimension (this lesson):</strong> run Longest Increasing Subsequence on the heights alone. The state, transition, and "max over all endings" are exactly the template above — the only new idea is that the sort pre-processes the problem down to one dimension so the pairwise rule becomes the plain <code>nums[j] &lt; nums[i]</code> you already know.</p>
+  <p>The Hard = (a sort that collapses 2D nesting to 1D increasing) + (the LIS template on what is left). Both are tools you already have; only the tiebreak direction is the trick to see.</p>
+</details>
+
+<h2>Your reps</h2>
+<ol>
+  <li>Solve Largest Divisible Subset by changing exactly one line of the LIS template — the eligibility rule from <code>nums[j] &lt; nums[i]</code> to <code>nums[i] % nums[j] == 0</code> (after sorting) — and reconstruct the subset with parent pointers. That one-line swap is the lesson.</li>
+  <li>Take Number of Longest Increasing Subsequence and derive it by carrying a second array <code>count[i]</code> alongside <code>dp[i]</code>, so you see concretely how switching the combine from <code>max</code> to "<code>max</code> for length, <code>+</code> for how-many" turns an optimization into a count.</li>
+</ol>
+
+<!-- REFERENCE -->
+<h2 id="refcard">Reference card — Subsequence-optimization DP (LIS family)</h2>
+<h3>When, and why</h3>
+<p>Use it when you are given one array and must keep an ordered subset (a subsequence) that is longest, largest-sum, or maximal under a <em>pairwise rule</em> relating each kept element to the one before it, and you must return one optimal answer. Because validity is a pairwise relation to the predecessor, the state must fix the ending element and the transition must scan every earlier eligible index — giving O(n²), the price of an unbounded look-back. This is the pattern's dividing line from 1D DP (Lesson 27), where the look-back is bounded and the cost is O(n).</p>
+<h3>The three acts, specialized</h3>
+<p><strong>Define the state function:</strong> <code>dp(i)</code> = the best answer (longest length, largest sum, …) for a valid subsequence that <em>ends exactly at index i</em>, so that the last kept element is <code>nums[i]</code> and the pairwise rule becomes checkable. The smallest state is a single element alone, value 1 (or <code>nums[i]</code> for a sum). <strong>Define the transition:</strong> over all earlier <code>j &lt; i</code> that satisfy the eligibility rule (<code>nums[j] &lt; nums[i]</code> for increasing, <code>nums[i] % nums[j] == 0</code> for divisible, "fits inside" for chains), combine with <code>max</code> for best or <code>+</code> for how-many, then add this element's contribution. <strong>Compute the DP:</strong> fill left to right in O(n²); the answer is the best over <em>all</em> endings, <code>max(dp)</code>, not <code>dp(n-1)</code>; store a parent pointer per state if you must output the actual subsequence.</p>
+<h3>Template</h3>
+<pre><code>dp = [1] * n                       # best ending exactly at i
+for i in range(n):
+    for j in range(i):             # scan ALL earlier indices
+        if eligible(j, i):         # the pairwise rule
+            dp[i] = max(dp[i], dp[j] + contribution(i))
+return max(dp)                     # best over ALL endings</code></pre>
+<h3>Classic problems</h3>
+<p>Longest Increasing Subsequence (M), Largest Divisible Subset (M), Maximum Length of Pair Chain (M), Longest String Chain (M), Longest Arithmetic Subsequence (M), Russian Doll Envelopes (H), Number of LIS (M, the + variant).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> If a subsequence DP won't come, tell me two things: the pairwise rule that decides whether index j may sit just before index i, and the quantity you are maximizing — those two fill in every blank in the template, and getting "the answer is max over all endings, not dp(n-1)" wrong is the single most common bug here.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> <a href="https://neetcode.io/courses">neetcode.io/courses</a> (Longest Increasing Subsequence). Derive the O(n²) DP first; treat the O(n log n) patience-sorting version as a separate, later optimization once the DP is automatic.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 32: DP on Trees &amp; Bitmask</span>
+  <span>Next: Lesson 34 — Monotonic Stack &amp; Queue →</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

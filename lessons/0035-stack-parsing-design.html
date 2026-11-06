@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lesson 34 — Stack for Parsing &amp; Design</title>
+<title>Lesson 35 — Stack for Parsing &amp; Design</title>
 <link rel="stylesheet" href="../assets/course.css">
 </head>
 <body>
 
 <p class="course-tag">Pattern-Driven DSA · Part 6 · Stack / Queue / Heap</p>
-<span class="lesson-no">Lesson 34 of the course</span>
+<span class="lesson-no">Lesson 35 of the course</span>
 <h1>Stack for Parsing &amp; Design — "the most recent unfinished thing"</h1>
 
 <p>Beyond monotonic stacks, the plain stack is the tool whenever a problem has <em>nesting</em> — brackets inside brackets, calls inside calls, operators waiting on operands. A stack holds "the most recently opened thing still waiting to be closed," which is exactly the structure of balanced parentheses, expression evaluation, and several system-design problems like min-stack and LRU cache.</p>
@@ -17,7 +17,7 @@
 <!-- SPACED RETRIEVAL -->
 <h2>Warm-up — recall (no peeking)</h2>
 <div class="probe" data-answered="0">
-  <div class="q">1. A monotonic stack (Lesson 33) stayed sorted by popping shadowed elements. What invariant does a <em>parsing</em> stack maintain instead?</div>
+  <div class="q">1. A monotonic stack (Lesson 34) stayed sorted by popping shadowed elements. What invariant does a <em>parsing</em> stack maintain instead?</div>
   <button class="opt" data-correct="true" data-fb="Right — LIFO nesting: the top is always the most recently opened, not-yet-closed context. No sortedness; just last-in-first-out matching.">The top is the most recently opened, still-unclosed context (LIFO nesting)</button>
   <button class="opt" data-correct="false" data-fb="A parsing stack is not kept sorted; that's the monotonic variant.">Its values stay sorted</button>
   <button class="opt" data-correct="false" data-fb="Parsing stacks don't inherently track min; that's a specific design problem (min-stack).">It always tracks the minimum</button>
@@ -153,8 +153,8 @@ for token in input:
 </footer>
 
 <nav class="lesson-nav">
-  <span>← Lesson 33: Monotonic Stack &amp; Queue</span>
-  <span>Next: Lesson 35 — Heap patterns →</span>
+  <span>← Lesson 34: Monotonic Stack &amp; Queue</span>
+  <span>Next: Lesson 36 — Heap patterns →</span>
 </nav>
 
 <script src="../assets/quiz.js"></script>

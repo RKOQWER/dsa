@@ -53,7 +53,7 @@
 <p>You add a dummy head whenever nodes may be inserted or removed at the front of the list, or when you are building a new list and want a stable handle to return. You attach the dummy before the real head and operate from it, returning <code>dummy.next</code> at the end. It works because the dummy guarantees every real node has a predecessor, so the "what if it's the head" edge case simply disappears and one loop covers all positions.</p>
 
 <h3>Fast/slow for positional queries</h3>
-<p>You use fast/slow when you need a position you cannot index to — the middle node, the k-th from the end, or whether a cycle exists. You advance one pointer faster than the other so their gap or ratio pins down the target. It works for the same reason as in Lesson 2: a fixed speed relationship converts "where is the middle / the cycle" into "where does the fast pointer stop," with no length precomputation.</p>
+<p>You use fast/slow when you need a position you cannot index to — the middle node, the k-th from the end, or whether a cycle exists. You advance one pointer faster than the other so their gap or ratio pins down the target. It works for the same reason as in Lesson 2: a fixed speed relationship converts "where is the middle / the cycle" into "where does the fast pointer stop," with no length precomputation. For <em>where</em> a cycle begins (Linked List Cycle II), one extra fact finishes it: after the pointers meet inside the loop, moving one pointer back to the head and advancing both one step at a time makes them meet again exactly at the cycle's entry — because the distance from the head to the entry equals the distance from the meeting point to the entry.</p>
 
 <!-- ============ TEMPLATE ============ -->
 <h2>The template (reproduce from memory)</h2>
@@ -107,6 +107,8 @@ def middle(head):
   <li><strong>Add Two Numbers</strong> (Medium) — <a href="https://leetcode.com/problems/add-two-numbers/">link</a></li>
   <li><strong>Swap Nodes in Pairs</strong> (Medium) — <a href="https://leetcode.com/problems/swap-nodes-in-pairs/">link</a></li>
   <li><strong>Linked List Cycle II</strong> (Medium) — <a href="https://leetcode.com/problems/linked-list-cycle-ii/">link</a></li>
+  <li><strong>Intersection of Two Linked Lists</strong> (Easy — two-pointer length-difference trick) — <a href="https://leetcode.com/problems/intersection-of-two-linked-lists/">link</a></li>
+  <li><strong>Palindrome Linked List</strong> (Easy — fast/slow midpoint, then reverse the second half) — <a href="https://leetcode.com/problems/palindrome-linked-list/">link</a></li>
   <li><strong>Copy List with Random Pointer</strong> (Medium) — <a href="https://leetcode.com/problems/copy-list-with-random-pointer/">link</a></li>
   <li><strong>Reverse Nodes in k-Group</strong> (Hard) — <a href="https://leetcode.com/problems/reverse-nodes-in-k-group/">link</a></li>
   <li><strong>Merge k Sorted Lists</strong> (Hard) — <a href="https://leetcode.com/problems/merge-k-sorted-lists/">link</a></li>

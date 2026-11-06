@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lesson 36 — Meet in the Middle</title>
+<title>Lesson 37 — Meet in the Middle</title>
 <link rel="stylesheet" href="../assets/course.css">
 </head>
 <body>
 
 <p class="course-tag">Pattern-Driven DSA · Part 7 · Advanced composition</p>
-<span class="lesson-no">Lesson 36 of the course — advanced technique</span>
+<span class="lesson-no">Lesson 37 of the course — advanced technique</span>
 <h1>Meet in the Middle — when the exponential is too big for brute force but the input is tiny</h1>
 
 <p>Sometimes no polynomial trick exists: the problem genuinely asks you to search over subsets, and a DP on the sum would need a table too wide to build (sums up to 10<sup>9</sup>, not a few thousand). You're staring at 2<sup>40</sup> subsets, which is a trillion — too many to enumerate. "Meet in the middle" is the escape hatch: split the input into two halves, brute-force each half independently (2<sup>n/2</sup> each, which is only a million when n = 40), then <em>combine the two halves cleverly</em> instead of pairing every left subset with every right subset. The signature tell is a small n (around 30-40) with values far too large for a sum-indexed DP.</p>
@@ -189,8 +189,8 @@ for a in L:
 </footer>
 
 <nav class="lesson-nav">
-  <span>← Lesson 35: Heap Patterns</span>
-  <span>Course complete — move to interleaving / mock mode in chat.</span>
+  <span>← Lesson 36: Heap Patterns</span>
+  <span>Next: Lesson 38 — Iterative Traversal →</span>
 </nav>
 
 <script src="../assets/quiz.js"></script>

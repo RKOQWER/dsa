@@ -60,6 +60,15 @@ def fib(n):
   <li><strong>Overlapping subproblems.</strong> Those smaller versions are reached again and again through different choice sequences. This is what makes caching pay off — if every subproblem were distinct, caching would save nothing and plain recursion or greedy would do.</li>
 </ul>
 
+<!-- ============ THE UNIVERSAL FIRST PRINCIPLES RULE ============ -->
+<h2>The Universal First Principles Rule</h2>
+<p>A Dynamic Programming state is just a representation of a specific point in time. To find your state variables, you must put yourself in the shoes of a machine building the solution step-by-step and ask yourself exactly two questions:</p>
+<ol>
+  <li><strong>Progress Variable:</strong> Where am I in the process? (What index, remaining length, or choice number am I on?)</li>
+  <li><strong>Constraint / Context Variables:</strong> What information from the past dictates my legal choices for the future?</li>
+</ol>
+<p>This second question is where you were getting stuck. If a past decision restricts what you can legally do next, that piece of information must become a state variable. If it doesn't restrict future choices, it is completely irrelevant and should be ignored.</p>
+
 <!-- ============ THE RECIPE ============ -->
 <h2>The recipe — the same three acts for every DP</h2>
 <p>Once you suspect DP, you never improvise. You perform these three acts, in order, every time. They are written as things you do, not facts to memorize.</p>

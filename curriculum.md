@@ -107,6 +107,7 @@ Babbar topic: **DP (60)** — the largest section, taught as recognizable DP *fa
 29. **String DP** — LCS, edit distance, palindromic subseq, regex/wildcard match.
 30. **Interval / partition DP** — matrix-chain, burst balloons, palindrome partitioning.
 31. **DP on trees & DP with bitmask** — (lighter touch, interview-relevant subset).
+32. **Subsequence-optimization DP (LIS family)** — longest increasing subsequence, longest string chain, largest divisible subset, max-length pair chain, Russian doll envelopes; state = best answer *ending at* index i, transition scans all earlier j.
 
 ---
 
@@ -114,9 +115,19 @@ Babbar topic: **DP (60)** — the largest section, taught as recognizable DP *fa
 
 Babbar topics: **Stacks & Queues (34), Heap (18)**.
 
-32. **Monotonic stack/queue** — next greater/smaller, histogram, sliding-window-max, stock span.
-33. **Stack for parsing/simulation** — valid parens, expression eval, min-stack, LRU design.
-34. **Heap patterns** — top-K, merge-K, median of stream, "schedule/greedy with a heap."
+33. **Monotonic stack/queue** — next greater/smaller, histogram, sliding-window-max, stock span.
+34. **Stack for parsing/simulation** — valid parens, expression eval, min-stack, LRU design.
+35. **Heap patterns** — top-K, merge-K, median of stream, "schedule/greedy with a heap."
+
+---
+
+## Part 6b — Advanced tree follow-ups (the "now do it without..." questions)
+
+These are the second-step questions interviewers ask after you give the clean recursive answer to a tree problem. Taught as an appendix to Part 3's tree lessons (15-17) rather than inserted among them.
+
+36. **Iterative traversal with an explicit stack** — pre/in/postorder without recursion; the pausable BST iterator.
+37. **Morris traversal & in-place tree tricks** — O(1)-space inorder via threading; flatten-to-list, next-right pointers.
+38. **Tree construction & serialization** — rebuild from preorder+inorder; serialize/deserialize codec, duplicate-subtree identity.
 
 ---
 
