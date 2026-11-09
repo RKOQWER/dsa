@@ -73,9 +73,232 @@ def single_number(nums):
 <h3>The handful of identities you actually reason with</h3>
 <p>Rather than memorize a wall of tricks, understand these few and derive the rest. <code>n &amp; (n-1)</code> clears the lowest set bit — because subtracting 1 flips the lowest set bit and all the zeros below it, so AND-ing wipes exactly that lowest one; repeatedly doing this counts set bits, and testing <code>n &amp; (n-1) == 0</code> checks "power of two" (a power of two has exactly one set bit, so clearing it gives 0). <code>n &amp; (-n)</code> isolates the lowest set bit, because two's-complement negation is "flip all bits and add 1", which leaves only the lowest set bit matching. And <code>x ^ y</code> marks exactly the positions where <code>x</code> and <code>y</code> differ, which is why it measures Hamming distance and isolates distinguishing bits.</p>
 
+<!-- ============ DERIVATION 3: ADD WITHOUT + AND - ============ -->
+<h2>Lens 3 — adding two integers without using + or -</h2>
+
+<p>You already know how to add on paper, column by column. Binary addition is identical, except every column holds only <code>0</code> or <code>1</code>.</p>
+
+<h3>Step 1: the truth table for one column</h3>
+
+<table>
+  <tr><th>a</th><th>b</th><th>sum bit</th><th>carry to next column</th></tr>
+  <tr><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+  <tr><td>0</td><td>1</td><td>1</td><td>0</td></tr>
+  <tr><td>1</td><td>0</td><td>1</td><td>0</td></tr>
+  <tr><td>1</td><td>1</td><td>0</td><td>1</td></tr>
+</table>
+
+Compare that table to two bitwise operators:
+- **Sum bit** (ignoring carry) = <code>a ^ b</code> (XOR)
+- **Carry** = <code>a &amp; b</code>, but it belongs to the next column to the left, so shift it: <code>(a &amp; b) &lt;&lt; 1</code>
+
+<h3>Step 2: one round produces two pieces</h3>
+
+<pre><code>partial_sum = a ^ b
+carry       = (a &amp; b) &lt;&lt; 1</code></pre>
+
+If <code>carry == 0</code>, stop — <code>partial_sum</code> is the answer. Otherwise, add <code>partial_sum + carry</code> using the exact same rule again. Repeat until carry becomes <code>0</code>.
+
+<h3>Step 3: walkthrough 2 + 3</h3>
+
+<pre>
+2 = 0010
+3 = 0011
+
+Round 1: partial_sum = 0001 (decimal 1), carry = 0100 (decimal 4)
+Round 2: partial_sum = 0101 (decimal 5), carry = 0000 (decimal 0)  → stop
+</pre>
+
+Answer: <strong>5</strong>.
+
+<h3>Step 4: walkthrough 7 + 1 (carry ripples through several bits)</h3>
+
+<pre>
+7 = 0111
+1 = 0001
+
+Round 1: partial_sum = 0110 (6),  carry = 0010 (2)
+Round 2: partial_sum = 0100 (4),  carry = 0100 (4)
+Round 3: partial_sum = 0000 (0),  carry = 1000 (8)
+Round 4: partial_sum = 1000 (8),  carry = 0000 (0)  → stop
+</pre>
+
+Answer: <strong>8</strong>.
+
+<h3>Step 5: why it always ends</h3>
+<p>Each round pushes the carry strictly leftward (toward higher bit positions). In a fixed-width machine, after at most 32 shifts the carry falls off the left edge and becomes <code>0</code>. The loop always terminates.</p>
+
+<h3>Step 6: the Python problem — infinite precision</h3>
+<p>Python integers do not have a fixed width. Negative numbers are conceptually stored with infinite leading <code>1</code>s (<code>-1</code> is <code>...11111111</code>). So the carry can become <code>2, 4, 8, 16...</code> forever and never reach <code>0</code>. The loop would run infinitely.</p>
+
+<p><strong>Fix:</strong> pretend we are in a 32-bit machine. After every operation, keep only the lowest 32 bits:</p>
+
+<pre><code>MASK = 0xFFFFFFFF   # 32 ones
+
+partial_sum = (a ^ b) &amp; MASK
+carry       = ((a &amp; b) &lt;&lt; 1) &amp; MASK</code></pre>
+
+Now the carry cannot escape to infinity; after at most 32 shifts it vanishes.
+
+<h3>Step 7: reading the 32-bit result as a normal Python int</h3>
+<p>After the loop, <code>ans</code> holds an unsigned 32-bit pattern.</p>
+<ul>
+  <li>If bit 31 is <code>0</code>, the number is positive. Return it as is.</li>
+  <li>If bit 31 is <code>1</code>, the pattern is negative in two's complement. Subtract <code>2^32</code> to get the signed Python int.</li>
+</ul>
+
+<pre><code>if ans &gt;= (1 &lt;&lt; 31):     # sign bit is set
+    ans -= (1 &lt;&lt; 32)      # subtract 2^32</code></pre>
+
+<h3>Why <code>ans -= 2^32</code> works (proof)</h3>
+<p>Let <code>U</code> be the unsigned value of an n-bit pattern and <code>S</code> be its signed two's-complement value. Only the leftmost bit changes weight:</p>
+<pre>
+Unsigned: U = 2^(n-1) + rest
+Signed:   S = -2^(n-1) + rest
+</pre>
+<p>Subtracting: <code>U - S = 2^(n-1) - (-2^(n-1)) = 2^n</code>. Therefore <code>S = U - 2^n</code> when the sign bit is <code>1</code>.</p>
+
+<h3>Step 8: correct code</h3>
+<pre><code>def getSum(a: int, b: int) -&gt; int:
+    MASK = 0xFFFFFFFF
+    MAX  = 0x7FFFFFFF
+    while b != 0:
+        carry = (a &amp; b) &lt;&lt; 1
+        a = (a ^ b) &amp; MASK
+        b = carry &amp; MASK
+    return a if a &lt;= MAX else a - (1 &lt;&lt; 32)</code></pre>
+
+<div class="callout trap">
+  <span class="label">Common mistakes</span>
+  <ul>
+    <li><b>Forgetting to shift the carry left:</b> carry must move to the next column: <code>(a &amp; b) &lt;&lt; 1</code>, not just <code>a &amp; b</code>.</li>
+    <li><b>Stopping on <code>b &gt; 0</code> instead of <code>b != 0</code>:</b> negative numbers break a greater-than check.</li>
+    <li><b>Using <code>~</code> to "fix" negatives:</b> in Python <code>~x</code> flips infinite bits and equals <code>-x - 1</code>. It does <em>not</em> convert a 32-bit unsigned pattern to a signed int.</li>
+  </ul>
+</div>
+
+<!-- ============ DERIVATION 4: MOD K COUNTING ============ -->
+<h2>Lens 4 — every number appears three times except one (Single Number II)</h2>
+
+<p>Plain XOR cancels pairs (modulo 2). Three is odd, so XOR alone leaves garbage. Instead, count each bit position separately.</p>
+
+<h3>Step 1: count bits per position</h3>
+<p>For each bit position <code>i</code> from <code>0</code> to <code>31</code>, count how many numbers in the array have that bit set. Every number appearing three times contributes <code>3</code> to the count; the single number contributes <code>0</code> or <code>1</code>. So <code>count % 3</code> leaves exactly the single number's bit at that position.</p>
+
+<h3>Step 2: rebuild the answer</h3>
+<p>If <code>count % 3 == 1</code>, set that bit in <code>ans</code>. After scanning all 32 positions, <code>ans</code> holds the single number as an <em>unsigned</em> 32-bit pattern.</p>
+
+<h3>Step 3: convert unsigned to signed</h3>
+<p>If bit 31 (<code>2^31</code>) is set, the value is negative in two's complement. The signed value is <code>unsigned - 2^32</code>. (Same proof as Lens 3: only the sign-bit weight changes from <code>+2^(n-1)</code> to <code>-2^(n-1)</code>, a gap of exactly <code>2^n</code>.)</p>
+
+<h3>Step 4: why <code>~</code> is wrong here</h3>
+<p>In Python <code>~x</code> flips every infinite bit and equals <code>-x - 1</code>. Applying <code>~</code> to your reconstructed answer does not give the correct negative conversion.</p>
+
+<h3>Correct code</h3>
+<pre><code>def singleNumber(nums: list[int]) -&gt; int:
+    ans = 0
+    for i in range(32):
+        cnt = 0
+        for e in nums:
+            if e &amp; (1 &lt;&lt; i):
+                cnt += 1
+        if cnt % 3:
+            ans |= (1 &lt;&lt; i)
+    if ans &gt;= (1 &lt;&lt; 31):      # sign bit set
+        ans -= (1 &lt;&lt; 32)      # convert to signed
+    return ans</code></pre>
+
+<!-- ============ DERIVATION 5: RANGE AND ============ -->
+<h2>Lens 5 — bitwise AND of every number in [left, right]</h2>
+
+<p>For a result bit to be <code>1</code>, <strong>every</strong> number in the range must have <code>1</code> there. If even one number has <code>0</code>, that bit becomes <code>0</code> and stays dead.</p>
+
+<h3>Step 1: find where left and right first differ</h3>
+<p>Compare <code>left</code> and <code>right</code> from the most significant bit downward:</p>
+<ul>
+  <li>While they match, that bit survives.</li>
+  <li>At the first position where they differ, <code>left</code> has <code>0</code> and <code>right</code> has <code>1</code> (because <code>left &lt; right</code>). The range crosses from <code>0</code> to <code>1</code>, so every bit at or below that position sees at least one <code>0</code> somewhere inside the range → all those bits become <code>0</code>.</li>
+</ul>
+
+<p>Therefore the answer is just the <strong>common prefix</strong> of <code>left</code> and <code>right</code> in binary, followed by zeros for every bit from the first mismatch downward.</p>
+
+<h3>Step 2: walkthrough 10 to 13</h3>
+<pre>
+10 = 1010
+13 = 1101
+
+Shift right until equal:
+Shift 1: 101 vs 110  (not equal)
+Shift 2: 10  vs 11   (not equal)
+Shift 3: 1   vs 1    (equal)
+
+Shift back left by 3: 1 &lt;&lt; 3 = 1000 = 8
+</pre>
+
+Brute-force check: <code>10 &amp; 11 &amp; 12 &amp; 13 = 1010 &amp; 1011 &amp; 1100 &amp; 1101 = 1000 = 8</code>.
+
+<h3>Step 3: algorithm</h3>
+<p>Keep shifting both <code>left</code> and <code>right</code> right until they are equal. Count the shifts. Then shift the common value back left by that count.</p>
+
+<h3>Correct code</h3>
+<pre><code>def rangeBitwiseAnd(left: int, right: int) -&gt; int:
+    shift = 0
+    while left != right:
+        left &gt;&gt;= 1
+        right &gt;&gt;= 1
+        shift += 1
+    return left &lt;&lt; shift</code></pre>
+
+<div class="callout trap">
+  <span class="label">Common mistake</span>
+  <p>When comparing the bit patterns, do <em>not</em> break when both bits are <code>0</code>. Two zeros still match; the result bit is <code>0</code>, but you must continue checking lower bits. Break <strong>only when the bits differ</strong>.</p>
+</div>
+
+<!-- ============ DERIVATION 6: COUNTING BITS ============ -->
+<h2>Lens 6 — count set bits for every number 0 to n (Counting Bits)</h2>
+
+<h3>Step 1: brute force</h3>
+<p>For each <code>i</code> from <code>0</code> to <code>n</code>, count its <code>1</code>-bits by checking every bit position. That is roughly O(n log n) because each number has about log(i) bits.</p>
+
+<h3>Step 2: look for a pattern</h3>
+<table>
+  <tr><th>i</th><th>binary</th><th>ans[i]</th></tr>
+  <tr><td>0</td><td>0</td><td>0</td></tr>
+  <tr><td>1</td><td>1</td><td>1</td></tr>
+  <tr><td>2</td><td>10</td><td>1</td></tr>
+  <tr><td>3</td><td>11</td><td>2</td></tr>
+  <tr><td>4</td><td>100</td><td>1</td></tr>
+  <tr><td>5</td><td>101</td><td>2</td></tr>
+  <tr><td>6</td><td>110</td><td>2</td></tr>
+  <tr><td>7</td><td>111</td><td>3</td></tr>
+</table>
+
+<p>Notice: <code>ans[i]</code> equals <code>ans[i >> 1]</code> (the number with its last bit removed) plus the last bit itself (<code>i &amp; 1</code>).</p>
+
+<h3>Step 3: why the recurrence holds</h3>
+<ul>
+  <li><code>i >> 1</code> strips the final bit. It is smaller than <code>i</code>, so it is already computed.</li>
+  <li><code>i &amp; 1</code> is <code>1</code> exactly when <code>i</code> is odd (the last bit is <code>1</code>).</li>
+</ul>
+
+<pre><code>ans[0] = 0
+ans[i] = ans[i &gt;&gt; 1] + (i &amp; 1)</code></pre>
+
+<p>This is a single pass, O(n) time.</p>
+
+<h3>Alternative view</h3>
+<p><code>i &amp; (i - 1)</code> clears the lowest set bit, so <code>ans[i] = ans[i &amp; (i - 1)] + 1</code> also works and is also O(n).</p>
+
+<h3>Correct code</h3>
+<pre><code>def countBits(n: int) -&gt; list[int]:
+    ans = [0] * (n + 1)
+    for i in range(1, n + 1):
+        ans[i] = ans[i &gt;&gt; 1] + (i &amp; 1)
+    return ans</code></pre>
+
 <!-- ============ PRACTICE ============ -->
 <h2>Practice problems — solve these yourself</h2>
-<p>Problems only. Ask me if stuck. Watch which lens each one wants — XOR-cancellation or bits-as-flags.</p>
+<p>Problems only. Ask me if stuck. Watch which lens each one wants — XOR-cancellation, bits-as-flags, column addition, mod-k counting, common prefix, or DP-on-bits.</p>
 <ol>
   <li><strong>Single Number</strong> (Easy) — <a href="https://leetcode.com/problems/single-number/">link</a></li>
   <li><strong>Number of 1 Bits</strong> (Easy) — <a href="https://leetcode.com/problems/number-of-1-bits/">link</a></li>
@@ -83,18 +306,21 @@ def single_number(nums):
   <li><strong>Counting Bits</strong> (Easy) — <a href="https://leetcode.com/problems/counting-bits/">link</a></li>
   <li><strong>Missing Number</strong> (Easy) — <a href="https://leetcode.com/problems/missing-number/">link</a></li>
   <li><strong>Reverse Bits</strong> (Easy) — <a href="https://leetcode.com/problems/reverse-bits/">link</a></li>
+  <li><strong>Sum of Two Integers</strong> (Medium) — <a href="https://leetcode.com/problems/sum-of-two-integers/">link</a></li>
   <li><strong>Single Number II</strong> (Medium) — <a href="https://leetcode.com/problems/single-number-ii/">link</a></li>
   <li><strong>Single Number III</strong> (Medium) — <a href="https://leetcode.com/problems/single-number-iii/">link</a></li>
   <li><strong>Subsets</strong> (Medium) — <a href="https://leetcode.com/problems/subsets/">link</a></li>
   <li><strong>Bitwise AND of Numbers Range</strong> (Medium) — <a href="https://leetcode.com/problems/bitwise-and-of-numbers-range/">link</a></li>
-  <li><strong>Sum of Two Integers</strong> (Medium) — <a href="https://leetcode.com/problems/sum-of-two-integers/">link</a></li>
   <li><strong>Maximum XOR of Two Numbers in an Array</strong> (Medium) — <a href="https://leetcode.com/problems/maximum-xor-of-two-numbers-in-an-array/">link</a></li>
   <li><strong>Minimum Number of K Consecutive Bit Flips</strong> (Hard) — <a href="https://leetcode.com/problems/minimum-number-of-k-consecutive-bit-flips/">link</a></li>
 </ol>
 
 <div class="callout trap">
   <span class="label">Trap — sharpen your discrimination</span>
-  <p><strong>Single Number II</strong> (Medium): every element appears three times except one. The instinct is "XOR everything" like Single Number I — but XOR only cancels <em>pairs</em> (even counts), and three is odd, so plain XOR leaves garbage. You instead track each bit's count <em>modulo 3</em> (or use two accumulators that cycle through three states). Lesson: XOR is parity (mod 2); the moment the repetition count isn't 2, the clean XOR cancellation no longer applies and you must generalize to mod-k bit counting.</p>
+  <p><strong>Single Number II</strong> (Medium): every element appears three times except one. The instinct is "XOR everything" like Single Number I — but XOR only cancels <em>pairs</em> (even counts), and three is odd, so plain XOR leaves garbage. You instead track each bit's count <em>modulo 3</em>. Lesson: XOR is parity (mod 2); when the repetition count isn't 2, generalize to counting each bit mod k.</p>
+  <p><strong>Sum of Two Integers</strong> (Medium): do not use <code>+</code> or <code>-</code>. Derive column addition: XOR gives the sum bit, AND-then-shift gives the carry, repeat until carry is zero. In Python, mask to 32 bits (<code>0xFFFFFFFF</code>) so negative numbers with infinite leading 1s do not loop forever, then subtract <code>2^32</code> if bit 31 is set to read the result as signed.</p>
+  <p><strong>Bitwise AND of Numbers Range</strong> (Medium): the answer is the common prefix of <code>left</code> and <code>right</code> with zeros below the first mismatch. Shift both right until equal, count shifts, shift back. Do not break when both bits are zero — break only when they differ.</p>
+  <p><strong>Counting Bits</strong> (Medium): build <code>ans[i] = ans[i >> 1] + (i &amp; 1)</code> in one pass. Stripping the last bit is already computed; add whether the last bit was 1.</p>
 </div>
 
 <!-- ============ COMPOSITION ============ -->
@@ -129,13 +355,17 @@ def single_number(nums):
 <ul>
   <li><strong>XOR cancellation (parity problems).</strong> When elements pair up and you need the unpaired one, or you need "which bits differ", XOR everything: equal values cancel to 0, so the odd-one-out or the differing bits survive — O(1) space, no hashmap.</li>
   <li><strong>Bits as a set of flags (subset enumeration / bitmask state).</strong> When you must enumerate all 2ⁿ subsets, or track "which of n items are used", let an integer <code>mask</code> be the set: bit <code>i</code> on ⇔ item <code>i</code> included. Counting <code>mask</code> from 0 to 2ⁿ−1 enumerates every subset once.</li>
+  <li><strong>Column addition without +/-.</strong> XOR = sum without carry; AND << 1 = carry; repeat until carry is 0. Mask to 32 bits in Python; subtract 2^32 if bit 31 is set.</li>
+  <li><strong>Counting each bit mod k.</strong> When every value repeats k times except one, count each bit position independently and take count % k.</li>
+  <li><strong>Range AND = common prefix.</strong> Shift left and right right until equal, then shift back; everything below the first mismatch is zero.</li>
+  <li><strong>DP on bits (Counting Bits).</strong> <code>ans[i] = ans[i >> 1] + (i &amp; 1)</code> gives O(n) single pass.</li>
 </ul>
 
 <h3>The one-line reason it works</h3>
 <p>XOR is addition mod 2 per bit, so even occurrences vanish and only odd ones remain; and an n-bit integer is literally an n-element yes/no membership vector, so a binary counter is a subset generator.</p>
 
 <h3>How to derive it cold</h3>
-<p>Ask "do I only care about parity (even/odd), not exact counts?" → XOR everything. Ask "am I choosing a subset / which items are in or out?" → represent the choice as a bitmask and iterate masks. The famous tricks (<code>n&amp;(n-1)</code> clears the lowest set bit, <code>n&amp;-n</code> isolates it, <code>x^y</code> marks differences) all follow from these.</p>
+<p>Ask "do I only care about parity (even/odd), not exact counts?" → XOR everything. Ask "am I choosing a subset / which items are in or out?" → represent the choice as a bitmask and iterate masks. Ask "can I add without +?" → separate sum bit (XOR) from carry (AND << 1). Ask "does every number repeat k times?" → count each bit mod k. The famous tricks (<code>n&amp;(n-1)</code> clears the lowest set bit, <code>n&amp;-n</code> isolates it, <code>x^y</code> marks differences) all follow from these.</p>
 
 <h3>Discrimination test (when it does NOT apply)</h3>
 <p>If the repetition count isn't 2 (Single Number II's triples), plain XOR parity breaks — generalize to counting each bit mod k. If n is large (more than ~20–22), 2ⁿ bitmask enumeration is too big; the bits-as-set trick is for small n only.</p>
@@ -145,14 +375,30 @@ def single_number(nums):
 from functools import reduce; from operator import xor
 odd = reduce(xor, nums, 0)
 
-# enumerate all subsets via bitmask
-for mask in range(1 &lt;&lt; n):
-    subset = [elems[i] for i in range(n) if mask &amp; (1 &lt;&lt; i)]
+# add two ints without + or -
+MASK = 0xFFFFFFFF
+while b != 0:
+    carry = (a &amp; b) &lt;&lt; 1
+    a = (a ^ b) &amp; MASK
+    b = carry &amp; MASK
+if a &gt;= (1 &lt;&lt; 31): a -= (1 &lt;&lt; 32)
 
-# key identities
-#   n &amp; (n - 1)   clears lowest set bit   (==0 means power of two)
-#   n &amp; (-n)      isolates lowest set bit
-#   bin(x).count("1")  population count</code></pre>
+# count bits mod k (Single Number II)
+ans = 0
+for i in range(32):
+    cnt = sum(1 for e in nums if e &amp; (1 &lt;&lt; i))
+    if cnt % k: ans |= (1 &lt;&lt; i)
+
+# range AND = common prefix
+shift = 0
+while left != right:
+    left &gt;&gt;= 1; right &gt;&gt;= 1; shift += 1
+return left &lt;&lt; shift
+
+# counting bits DP
+ans = [0] * (n + 1)
+for i in range(1, n + 1):
+    ans[i] = ans[i &gt;&gt; 1] + (i &amp; 1)</code></pre>
 
 <h3>Complexity and classic problems</h3>
 <p>XOR scans O(n) time, O(1) space; subset enumeration O(2ⁿ · n). Practice set: Single Number (E), Counting Bits (E), Power of Two (E), Single Number III (M), Subsets (M), Maximum XOR of Two Numbers (M), Minimum Number of K Consecutive Bit Flips (H).</p>

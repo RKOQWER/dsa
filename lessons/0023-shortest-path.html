@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lesson 23 — Shortest Path (BFS, Dijkstra, 0-1 BFS)</title>
+<title>Lesson 23 — Shortest Path (BFS, Dijkstra, 0-1 BFS, DAG)</title>
 <link rel="stylesheet" href="../assets/course.css">
 </head>
 <body>
 
 <p class="course-tag">Pattern-Driven DSA · Part 4 · Graphs</p>
 <span class="lesson-no">Lesson 23 of the course</span>
-<h1>Shortest Path — one idea, three tools chosen by the edge weights</h1>
+<h1>Shortest Path — one idea, four tools chosen by the edge weights</h1>
 
-<p>"Fewest steps," "cheapest route," "minimum time to reach" — all shortest-path questions. The right tool is decided by <strong>one thing: what the edge weights look like</strong>. This lesson derives why plain BFS already solves the unweighted case, why that breaks the moment edges have different costs, and how Dijkstra fixes it by always expanding the closest-known node first. We keep it to non-negative weights.</p>
+<p>"Fewest steps," "cheapest route," "minimum time to reach" — all shortest-path questions. The right tool is decided by <strong>two things: what the edge weights look like, and whether the graph can contain a cycle</strong>. This lesson derives why plain BFS already solves the unweighted case, why that breaks the moment edges have different costs, how Dijkstra fixes it by always expanding the closest-known node first, and why an acyclic graph (a DAG) lets you drop the heap entirely and even tolerate negative weights. The one case we leave out is a graph that has both cycles and negative edges — that needs Bellman-Ford.</p>
 
 <!-- ============ SPACED RETRIEVAL ============ -->
 <h2>Recall from earlier lessons (no peeking)</h2>
@@ -32,7 +32,7 @@
 </div>
 
 <!-- ============ DERIVATION ============ -->
-<h2>Deriving the three tools from the edge weights</h2>
+<h2>Deriving the four tools from the edge weights</h2>
 
 <div class="callout derive">
   <span class="label">Derive it</span>
@@ -41,6 +41,7 @@
   <p><strong>Spot the waste / fix:</strong> what you actually want is to always process next the unfinalised node with the <em>smallest known total distance</em>. If you always expand the globally-closest frontier node, then at the moment you pop a node its shortest distance is settled — because every other route to it would have to go through a node that is at least as far, and (with non-negative weights) adding more edges can only increase cost. That ordering requirement is exactly what a <strong>min-priority-queue</strong> gives you.</p>
   <p><strong>The insight (= Dijkstra):</strong> keep a min-heap keyed by "best distance found so far." Pop the closest node, and for each neighbour, if going through this node is cheaper than its current best, update it and push the new distance. The heap guarantees you finalise nodes in increasing distance order — BFS's correctness argument, generalised from "edge count" to "total weight." O(E log V).</p>
   <p><strong>Case 3 — weights are only 0 or 1.</strong> You don't need a full heap. A 0-weight edge keeps you at the same distance, a 1-weight edge adds one. Use a <em>deque</em>: push 0-edges to the <strong>front</strong> and 1-edges to the <strong>back</strong>. This keeps the deque in nondecreasing distance order automatically — <strong>0-1 BFS</strong>, O(V + E), no log factor.</p>
+  <p><strong>Case 4 — the graph has no cycles (a DAG), and weights can be anything, even negative.</strong> The three tools above all discover a safe processing order <em>as they run</em> — but each leans on non-negative weights to do it, so none survives a negative edge. A DAG hands you a safe order for free: its <strong>topological order</strong>. Process the nodes in that order and relax each node's outgoing edges once. By the time you reach a node, every path into it has already been finalised (all its predecessors came earlier in topological order), so its distance is settled on first visit — no heap, no re-processing, and negative weights are fine because you never relied on "adding an edge can't lower the cost." Topological sort is O(V + E) and one relaxation sweep is O(V + E), so the whole thing is <strong>O(V + E)</strong>. This is also how you get <em>longest</em> path in a DAG (NP-hard in a general graph): negate the weights, or relax for the maximum instead of the minimum.</p>
 </div>
 
 <div class="callout derive">
@@ -50,6 +51,7 @@
 
 <h3>The deeper principle (so it transfers)</h3>
 <p>All three tools are the same traversal with the same correctness idea — <em>finalise nodes in order of increasing distance</em> — and they differ only in the structure that enforces that order. When every step costs the same, a plain queue already enforces it (BFS). When steps cost 0 or 1, a double-ended queue enforces it (0-1 BFS). When steps have arbitrary non-negative costs, a min-priority-queue enforces it (Dijkstra). So the recognition move is: <strong>look at the edge weights, and pick the cheapest structure that still processes nodes closest-first.</strong> A grid where each move costs one is unweighted — reach for BFS, not Dijkstra; using a heap there is correct but needlessly slow.</p>
+<p>The DAG case is the same idea seen from the other side. The first three tools <em>discover</em> a safe processing order while they run, and they can only do that because non-negative weights guarantee "closest-first" is also "finalise-able-first" — which is exactly why a single negative edge breaks all three. A DAG lets you <em>precompute</em> the safe order once, with topological sort, instead of discovering it. Because the order no longer depends on the weights, the weights are free to be negative. So the full recognition move is: <strong>if the graph is acyclic, relax in topological order and stop worrying about weight signs; otherwise look at the weights and pick BFS / 0-1 BFS / Dijkstra.</strong> (For a graph that has cycles <em>and</em> negative edges, neither family applies — that is Bellman-Ford's job, beyond this lesson.)</p>
 
 <!-- ============ WHEN TO USE ============ -->
 <h2>When to use which, and why</h2>
@@ -62,6 +64,9 @@
 
 <h3>Use 0-1 BFS when every edge weight is 0 or 1</h3>
 <p>Some grid problems let you take certain moves for free (weight 0) and others at cost 1 (for example, you may change direction for free but pay to break a wall). A full heap is overkill; a deque that front-loads the 0-cost moves keeps distances ordered and runs in linear time. Recognise it by "two kinds of moves, one free and one costing one."</p>
+
+<h3>Use DAG relaxation when the graph is acyclic</h3>
+<p>If the dependency structure has no cycles — task/course prerequisites, a build pipeline, states that only move forward in time, or a grid where moves are forced in one direction (e.g. strictly increasing values) — topologically sort the nodes and relax each one's edges in that order. It is O(V + E), beats Dijkstra's log factor, and is the only tool here that stays correct with <em>negative</em> edge weights. It is also the go-to for the <em>longest</em> path in a DAG (just relax for the max). Recognise it by "the graph can't loop back on itself."</p>
 
 <!-- ============ TEMPLATE ============ -->
 <h2>The template (reproduce from memory)</h2>
@@ -108,6 +113,30 @@ def zero_one_bfs(start, adj, n):         # adj[u] = list of (v, weight in {0,1})
                 dist[v] = dist[u] + w
                 dq.appendleft(v) if w == 0 else dq.append(v)
     return dist
+
+# Graph is a DAG, weights arbitrary (may be negative): relax in topological order
+def dag_shortest_path(start, adj, n):    # adj[u] = list of (v, weight)
+    indeg = [0] * n
+    for u in range(n):
+        for v, _ in adj[u]:
+            indeg[v] += 1
+    topo, q = [], deque(u for u in range(n) if indeg[u] == 0)
+    while q:                             # Kahn's: produce a topological order
+        u = q.popleft()
+        topo.append(u)
+        for v, _ in adj[u]:
+            indeg[v] -= 1
+            if indeg[v] == 0:
+                q.append(v)
+    dist = [float('inf')] * n
+    dist[start] = 0
+    for u in topo:                       # every predecessor of u is already final
+        if dist[u] == float('inf'):
+            continue                     # u not reachable from start
+        for v, w in adj[u]:
+            if dist[u] + w < dist[v]:    # use max(...) here for longest path
+                dist[v] = dist[u] + w
+    return dist
 </code></pre>
 <p>Compact reference at the <a href="#refcard">bottom</a>.</p>
 
@@ -116,10 +145,10 @@ def zero_one_bfs(start, adj, n):         # adj[u] = list of (v, weight in {0,1})
 <p>Problems only; ask me if you get stuck.</p>
 
 <ol>
-  <li><strong>Shortest Path in Binary Matrix</strong> (Medium) — <a href="https://leetcode.com/problems/shortest-path-in-binary-matrix/">link</a>. Equal-cost moves → BFS.</li>
-  <li><strong>Rotting Oranges</strong> (Medium) — <a href="https://leetcode.com/problems/rotting-oranges/">link</a>. Multi-source BFS.</li>
-  <li><strong>Network Delay Time</strong> (Medium) — <a href="https://leetcode.com/problems/network-delay-time/">link</a>. The canonical Dijkstra.</li>
-  <li><strong>Path With Minimum Effort</strong> (Medium) — <a href="https://leetcode.com/problems/path-with-minimum-effort/">link</a>. Dijkstra where "distance" is max edge on the path.</li>
+  <li><strong>Shortest Path in Binary Matrix</strong> (Medium) — <a href="https://leetcode.com/problems/shortest-path-in-binary-matrix/">link</a>. Equal-cost moves → BFS.</li> (Done)
+  <li><strong>Rotting Oranges</strong> (Medium) — <a href="https://leetcode.com/problems/rotting-oranges/">link</a>. Multi-source BFS.</li> (Done)
+  <li><strong>Network Delay Time</strong> (Medium) — <a href="https://leetcode.com/problems/network-delay-time/">link</a>. The canonical Dijkstra.</li> (Done)
+  <li><strong>Path With Minimum Effort</strong> (Medium) — <a href="https://leetcode.com/problems/path-with-minimum-effort/">link</a>. Dijkstra where "distance" is max edge on the path.</li> (Done)
   <li><strong>Cheapest Flights Within K Stops</strong> (Medium) — <a href="https://leetcode.com/problems/cheapest-flights-within-k-stops/">link</a>. Weighted, with a hop limit.</li>
   <li><strong>Path with Maximum Probability</strong> (Medium) — <a href="https://leetcode.com/problems/path-with-maximum-probability/">link</a>. Dijkstra on a max-product.</li>
   <li><strong>Minimum Cost to Make at Least One Valid Path in a Grid</strong> (Hard) — <a href="https://leetcode.com/problems/minimum-cost-to-make-at-least-one-valid-path-in-a-grid/">link</a>. Classic 0-1 BFS.</li>
@@ -128,6 +157,8 @@ def zero_one_bfs(start, adj, n):         # adj[u] = list of (v, weight in {0,1})
   <li><strong>Minimum Obstacle Removal to Reach Corner</strong> (Hard) — <a href="https://leetcode.com/problems/minimum-obstacle-removal-to-reach-corner/">link</a>. Another 0-1 BFS in disguise.</li>
   <li><strong>Swim in Rising Water</strong> (Hard) — <a href="https://leetcode.com/problems/swim-in-rising-water/">link</a>. Dijkstra-style frontier where cost is the running max.</li>
   <li><strong>Word Ladder</strong> (Hard) — <a href="https://leetcode.com/problems/word-ladder/">link</a>. Unweighted shortest path by BFS.</li>
+  <li><strong>Longest Increasing Path in a Matrix</strong> (Hard) — <a href="https://leetcode.com/problems/longest-increasing-path-in-a-matrix/">link</a>. The "increasing" rule forbids cycles, so the grid is a DAG → relax in topological order (equivalently, memoized DFS).</li>
+  <li><strong>Parallel Courses III</strong> (Hard) — <a href="https://leetcode.com/problems/parallel-courses-iii/">link</a>. Longest path (critical path) in a DAG: relax each course's finish time in topological order, taking the max over prerequisites.</li>
 </ol>
 
 <!-- ============ COMPOSITION (hard) ============ -->
@@ -158,7 +189,7 @@ def swimInWater(grid):
 </details>
 
 <div class="ask-teacher">
-  <strong>I'm your teacher — ask me anything.</strong> If you're unsure whether a problem is BFS or Dijkstra, tell me the edge weights (all equal? varying? only 0/1?) and we'll pick the cheapest structure that still processes closest-first.
+  <strong>I'm your teacher — ask me anything.</strong> If you're unsure which tool a problem wants, first ask "can the graph loop back on itself?" — if not, it's a DAG and you relax in topological order. If it can, tell me the edge weights (all equal? varying? only 0/1?) and we'll pick the cheapest structure that still processes closest-first.
 </div>
 
 <!-- ============ REFERENCE CARD ============ -->
@@ -166,11 +197,12 @@ def swimInWater(grid):
 <p>The compressed version.</p>
 
 <h3>The one decision: look at the edge weights</h3>
-<p>All three are the same traversal with the same correctness idea — <strong>finalise nodes in increasing distance order</strong> — differing only in the structure that enforces it.</p>
+<p>All four are the same traversal with the same correctness idea — <strong>finalise nodes in increasing distance order</strong> — differing only in how that order is obtained: the first three enforce it with a data structure as they run, the DAG case precomputes it with a topological sort.</p>
 <ul>
   <li><strong>All edges equal (unweighted) → BFS</strong>, O(V + E). The FIFO queue already visits in distance order, so first arrival is shortest. Default for grids where each move costs one.</li>
   <li><strong>Non-negative varying weights → Dijkstra</strong>, O(E log V). A min-priority-queue always pops the closest unfinalised node, so its distance is settled on pop. Fails with negative edges.</li>
   <li><strong>Weights are 0 or 1 → 0-1 BFS</strong>, O(V + E). A deque: push 0-edges to the front, 1-edges to the back, keeping distances ordered without a heap.</li>
+  <li><strong>Graph is a DAG (any weights, incl. negative) → relax in topological order</strong>, O(V + E). Topological order is a safe processing order independent of the weights, so no heap is needed and negative edges are fine. Also gives longest path in a DAG (relax for the max).</li>
 </ul>
 
 <h3>Priority queue, briefly</h3>
@@ -186,8 +218,17 @@ while pq:
             dist[v] = d + w
             heappush(pq, (dist[v], v))</code></pre>
 
+<h3>DAG template (relax in topological order)</h3>
+<pre><code>order = topological_sort(adj, n)       # Kahn's or DFS post-order reversed
+dist = [inf]*n; dist[s] = 0
+for u in order:                        # predecessors of u already final
+    if dist[u] == inf: continue
+    for v, w in adj[u]:
+        if dist[u] + w < dist[v]:      # max(...) for longest path in a DAG
+            dist[v] = dist[u] + w</code></pre>
+
 <h3>Classic problems</h3>
-<p>Shortest Path in Binary Matrix (M, BFS), Network Delay Time (M, Dijkstra), Path With Minimum Effort (M), Cheapest Flights Within K Stops (M), Min Cost Valid Path in Grid (H, 0-1 BFS), Swim in Rising Water (H, Dijkstra or binary-search-on-answer).</p>
+<p>Shortest Path in Binary Matrix (M, BFS), Network Delay Time (M, Dijkstra), Path With Minimum Effort (M), Cheapest Flights Within K Stops (M), Min Cost Valid Path in Grid (H, 0-1 BFS), Longest Increasing Path in a Matrix (H, DAG), Parallel Courses III (H, DAG longest path), Swim in Rising Water (H, Dijkstra or binary-search-on-answer).</p>
 
 <footer class="src" id="src">
   <strong>Primary source:</strong> CP-Algorithms Dijkstra and 0-1 BFS — <a href="https://cp-algorithms.com/graph/dijkstra.html">cp-algorithms.com/graph/dijkstra</a> and <a href="https://cp-algorithms.com/graph/01_bfs.html">/graph/01_bfs</a>.

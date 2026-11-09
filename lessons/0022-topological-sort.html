@@ -113,11 +113,14 @@ def topo_sort_dfs(n, adj):
   <li><strong>Minimum Height Trees</strong> (Medium) — <a href="https://leetcode.com/problems/minimum-height-trees/">link</a>. Peel leaves — a Kahn-style idea on an undirected tree.</li>
   <li><strong>All Ancestors of a Node in a DAG</strong> (Medium) — <a href="https://leetcode.com/problems/all-ancestors-of-a-node-in-a-directed-acyclic-graph/">link</a>.</li>
   <li><strong>Build a Matrix With Conditions</strong> (Hard) — <a href="https://leetcode.com/problems/build-a-matrix-with-conditions/">link</a>. Two independent topo sorts (rows and columns).</li>
-  <li><strong>Sequence Reconstruction</strong> (Medium) — <a href="https://leetcode.com/problems/sequence-reconstruction/">link</a>. Is the topo order unique?</li>
-  <li><strong>Parallel Courses</strong> (Medium) — <a href="https://leetcode.com/problems/parallel-courses/">link</a>. Count dependency layers with Kahn's.</li>
+  <li><strong>Sequence Reconstruction</strong> (Medium, premium) — <a href="https://leetcode.com/problems/sequence-reconstruction/">link</a>. Is the topo order unique?</li>
+  <li><strong>Minimum Height Trees</strong> (Medium — free stand-in for Sequence Reconstruction's uniqueness check: Kahn's is forced to a unique choice at every step only when exactly one node has in-degree zero, the same "is the order pinned down" test) — <a href="https://leetcode.com/problems/minimum-height-trees/">link</a></li>
+  <li><strong>Parallel Courses</strong> (Medium, premium) — <a href="https://leetcode.com/problems/parallel-courses/">link</a>. Count dependency layers with Kahn's.</li>
+  <li><strong>Course Schedule II</strong> (Medium — free alternative to Parallel Courses: run the identical Kahn's BFS; counting the rounds of leaf-removal gives the layer count) — <a href="https://leetcode.com/problems/course-schedule-ii/">link</a></li>
   <li><strong>Course Schedule IV</strong> (Medium) — <a href="https://leetcode.com/problems/course-schedule-iv/">link</a>. Reachability queries on a DAG.</li>
   <li><strong>Longest Increasing Path in a Matrix</strong> (Hard) — <a href="https://leetcode.com/problems/longest-increasing-path-in-a-matrix/">link</a>. The grid is a DAG; order it.</li>
-  <li><strong>Alien Dictionary</strong> (Hard) — <a href="https://leetcode.com/problems/alien-dictionary/">link</a>. Recover the alphabet order from sorted words.</li>
+  <li><strong>Alien Dictionary</strong> (Hard, premium) — <a href="https://leetcode.com/problems/alien-dictionary/">link</a>. Recover the alphabet order from sorted words.</li>
+  <li><strong>Course Schedule II</strong> (Medium — free alternative to Alien Dictionary: Alien Dictionary is just "derive edges from adjacent words, then return a topo order" — once the edges exist, it is this exact problem) — <a href="https://leetcode.com/problems/course-schedule-ii/">link</a></li>
   <li><strong>Sort Items by Groups Respecting Dependencies</strong> (Hard) — <a href="https://leetcode.com/problems/sort-items-by-groups-respecting-dependencies/">link</a>. Two-level topo sort.</li>
 </ol>
 
