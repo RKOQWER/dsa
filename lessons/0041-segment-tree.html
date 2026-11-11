@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 41 — Segment Tree</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 7 · Advanced composition</p>
+<span class="lesson-no">Lesson 41 of the course — advanced technique</span>
+<h1>Segment Tree — fast range queries when the array keeps changing</h1>
+
+<p>Prefix sums (Lesson 4) answer any range-sum query in O(1), but only on a <em>static</em> array: change one element and you must rebuild the whole prefix array in O(n). The moment a problem mixes <strong>point updates</strong> with <strong>range queries</strong> — "add 5 at index i, then tell me the sum of indices l..r, then update again" — prefix sums collapse to O(n) per update. A segment tree is the structure that keeps <em>both</em> operations at O(log n) by storing range aggregates in a balanced tree and touching only the O(log n) nodes on one root-to-leaf path per update. It generalises past sums to any associative combine — min, max, gcd, count — and with <strong>lazy propagation</strong> it also does <em>range</em> updates in O(log n). The signal is any problem that interleaves updates and range questions, or any offline problem you can reframe as "process in some order while querying a running structure."</p>
+
+<!-- SPACED RETRIEVAL -->
+<h2>Warm-up — recall (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. With a <strong>prefix-sum array</strong> (Lesson 4) <code>P</code> where <code>P[i]</code> is the sum of the first <code>i</code> elements, how do you get the sum of the half-open range <code>[l, r)</code>, and what breaks if one element changes?</div>
+  <button class="opt" data-correct="true" data-fb="Right — range sum is P[r] − P[l] in O(1), but a single element change at index i invalidates every P[j] for j > i, so you rebuild in O(n). That O(n)-per-update cost is exactly the waste a segment tree removes.">Sum is <code>P[r] − P[l]</code> in O(1); but changing element i forces rebuilding all later prefixes, O(n) per update</button>
+  <button class="opt" data-correct="false" data-fb="Prefix sums are not a tree and don't give O(log n) updates on their own — that's the segment tree you're about to derive.">Sum is <code>P[r] − P[l]</code>; updates are already O(log n)</button>
+  <button class="opt" data-correct="false" data-fb="You never scan the range with a prefix array — the whole point is the O(1) difference. The update cost is the real issue.">You re-scan <code>l..r</code> each query, so both query and update are O(n)</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. A <strong>balanced binary tree</strong> over n leaves (Lesson 16 intuition) has what height, and why does that number keep appearing in "touch one root-to-leaf path" algorithms?</div>
+  <button class="opt" data-correct="true" data-fb="Right — height ≈ log₂ n, because each level doubles the number of nodes. Any operation that walks a single path from root to a leaf (or merges O(1) partial ranges per level) is therefore O(log n). That's the budget a segment tree spends per update and per query.">Height ≈ log₂ n; each level doubles the node count, so a single root-to-leaf path is O(log n)</button>
+  <button class="opt" data-correct="false" data-fb="A balanced tree is specifically NOT linear height — that's the degenerate/skewed case. Balance is what buys the log.">Height ≈ n/2; a path visits about half the nodes</button>
+  <button class="opt" data-correct="false" data-fb="n log n is a common total cost for n operations, but the height of one balanced tree is log n, not n log n.">Height ≈ n log n</button>
+</div>
+
+<!-- DERIVATION -->
+<h2>Deriving the segment tree via Range Sum Query - Mutable</h2>
+<p>Take <strong>Range Sum Query - Mutable</strong> (LeetCode 307): you're given an array, and must support two operations, interleaved any number of times — <code>update(i, val)</code> sets element <code>i</code> to <code>val</code>, and <code>sumRange(l, r)</code> returns the sum of elements <code>l..r</code> inclusive.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Brute force A — recompute each query.</strong> Keep the raw array. <code>update</code> is O(1), but every <code>sumRange</code> scans the range in O(n). With q mixed operations that's O(n·q) — too slow when both are large.</p>
+  <p><strong>Brute force B — prefix sums (Lesson 4).</strong> Keep a prefix array so <code>sumRange</code> is O(1). Now the <em>query</em> is free, but <code>update(i, val)</code> invalidates every prefix entry from <code>i</code> onward, forcing an O(n) rebuild. We've just moved the O(n) from queries to updates. Either way, one of the two operations is linear.</p>
+  <p><strong>Spot the waste.</strong> The two extremes fail for the same reason: both store aggregates at <em>one granularity</em> — either per-element (cheap update, expensive query) or whole-prefix (cheap query, expensive update). A range query of length m is answered either by m tiny pieces or by two giant pieces. What we want is <em>pieces of many sizes at once</em>, so any range decomposes into a handful of pre-summed blocks, and any single element lives in only a handful of blocks.</p>
+  <p><strong>The insight (= the pattern).</strong> Build a binary tree of ranges: the root covers <code>[0, n)</code>, each node splits its range in half between its two children, and leaves are single elements. Store at every node the <em>sum of its range</em>. There are about 2n nodes and the tree is <code>⌈log₂ n⌉</code> tall. Now both operations cost one tree height:</p>
+  <ul>
+    <li><strong>Update(i):</strong> only the nodes whose range contains <code>i</code> change — that's exactly the single path from leaf <code>i</code> up to the root, <code>log n</code> nodes. Set the leaf, then re-sum each ancestor from its two children. O(log n).</li>
+    <li><strong>Query(l, r):</strong> any range <code>[l, r)</code> is covered by O(log n) <em>maximal</em> tree nodes that fall entirely inside it (you never descend into a node already fully contained). Add their stored sums. O(log n).</li>
+  </ul>
+  <p>The win comes from the <em>intermediate</em> granularities the two brute forces lacked: a length-m range is stitched from ≤ 2·log n pre-summed blocks, and each element sits in only log n blocks, so no operation ever touches more than one tree height. That multi-scale decomposition <em>is</em> the segment tree.</p>
+  <pre><code># Iterative segment tree, point update + range-sum query.
+# Leaves live at t[n .. 2n-1]; internal node i has children 2i and 2i+1.
+class SegTree:
+    def __init__(self, data):
+        self.n = len(data)
+        self.t = [0] * (2 * self.n)
+        for i in range(self.n):              # place the leaves
+            self.t[self.n + i] = data[i]
+        for i in range(self.n - 1, 0, -1):   # build parents bottom-up
+            self.t[i] = self.t[2*i] + self.t[2*i + 1]
+
+    def update(self, i, val):                # set data[i] = val
+        i += self.n
+        self.t[i] = val
+        i >>= 1
+        while i >= 1:                        # walk the one path to the root
+            self.t[i] = self.t[2*i] + self.t[2*i + 1]
+            i >>= 1
+
+    def query(self, l, r):                   # sum of data[l..r-1], half-open [l, r)
+        res = 0
+        l += self.n; r += self.n
+        while l < r:                         # collect the maximal in-range nodes
+            if l &amp; 1: res += self.t[l]; l += 1
+            if r &amp; 1: r -= 1; res += self.t[r]
+            l >>= 1; r >>= 1
+        return res
+</code></pre>
+  <p>You didn't recall "segment tree" — you noticed prefix sums buy a fast query only by making updates linear, asked "what if I stored sums at <em>every</em> scale instead of just the whole prefix," and a balanced tree of range-sums fell out. The tree where every node holds its range's aggregate, updated along one path and queried by a handful of maximal blocks, <em>is</em> the pattern.</p>
+</div>
+
+<p><strong>The transferable shape:</strong> the stored value doesn't have to be a sum. Any <em>associative</em> combine works — replace <code>+</code> with <code>min</code>, <code>max</code>, <code>gcd</code>, or "count of values in a range" and the exact same tree answers "min/max/gcd over <code>[l, r)</code>" with point updates. The tree structure is fixed; the monoid you store is the knob. That is why one data structure covers range-sum, range-min (RMQ), and "how many elements so far are less than x" (a counting segment tree over compressed values), which is the engine behind inversion-counting problems.</p>
+
+<!-- LAZY -->
+<h2>One more gear: range updates with lazy propagation</h2>
+<p>The point-update tree makes "change one element" cheap, but some problems want "add 5 to <em>every</em> element in <code>[l, r]</code>" as a single operation. Doing that as r−l+1 point updates is back to O(n). The fix keeps the same tree but adds a <strong>lazy</strong> value per node: when a range update fully covers a node, record the pending change on that node and stop — don't recurse into its children yet. The deferred change is <em>pushed down</em> only when a later operation actually needs to visit those children. Each range update and range query stays O(log n), because the laziness stops the recursion at the same O(log n) maximal nodes a query would.</p>
+
+<div class="callout derive">
+  <span class="label">Why lazy is correct, in one line</span>
+  <p>A node's stored aggregate is always kept <em>fully up to date for its own range</em>; the lazy tag only means "my children don't yet know about a uniform change I already folded into my aggregate." As long as you push that tag down before you ever read or split a child, every value you return reflects all updates — you've just delayed the work until it's unavoidable, like a difference-array deferral (Lesson 4) pushed into a tree.</p>
+</div>
+
+<!-- WHEN / WHY -->
+<h2>When to reach for a segment tree, and why</h2>
+<ul>
+  <li><strong>The array is mutated between queries, and the queries are over ranges.</strong> This is the defining case: interleaved <code>update</code> and <code>range-aggregate</code> operations. Prefix sums (Lesson 4) are strictly better when the array is <em>static</em> — O(1) query, no tree — so only reach for a segment tree once updates enter the picture. If there are no updates at all, you're over-engineering.</li>
+  <li><strong>The aggregate is associative — sum, min, max, gcd, or a count — so a parent can be computed from its two children.</strong> That is the only requirement on what you store. If the "aggregate" of two ranges can't be formed from their two partial aggregates (it depends on the raw elements in some non-combinable way), a segment tree can't hold it.</li>
+  <li><strong>You need range <em>updates</em>, not just point updates ("add v to all of [l, r]", "assign v to all of [l, r]").</strong> Reach for <strong>lazy propagation</strong>. The tell is an update phrased over a whole interval rather than a single index; the lazy tag defers the per-element work exactly like a difference array, but inside the tree so queries stay O(log n).</li>
+  <li><strong>An offline problem reframes as "process elements in a chosen order while maintaining a running count/aggregate over a value axis."</strong> Counting inversions, "how many later elements are smaller," or "how many seen values fall in a range" become point-update + range-query on a segment tree (or Fenwick tree) indexed by <em>value</em> (coordinate-compressed), not by position. Recognise it when a problem counts order-relations among elements — sort or sweep, and let the tree accumulate.</li>
+  <li><strong>A DP transition needs the max/min/sum of a contiguous band of earlier states.</strong> When <code>dp[x] = f(best of dp over some range of earlier values)</code>, a segment tree over the state axis turns an O(n) transition scan into O(log n), dropping an O(n²) DP to O(n log n). This is the segment-tree-accelerated-DP composition (see below).</li>
+</ul>
+
+<!-- TEMPLATE -->
+<h2>The templates (reproduce from memory)</h2>
+<pre><code># ---- Point update, range query (iterative, O(log n) each) ----
+class SegTree:
+    def __init__(self, data):
+        self.n = len(data)
+        self.t = [0] * (2 * self.n)
+        for i in range(self.n):
+            self.t[self.n + i] = data[i]
+        for i in range(self.n - 1, 0, -1):
+            self.t[i] = self.t[2*i] + self.t[2*i + 1]   # swap + for min/max/gcd
+    def update(self, i, val):
+        i += self.n; self.t[i] = val; i >>= 1
+        while i >= 1:
+            self.t[i] = self.t[2*i] + self.t[2*i + 1]
+            i >>= 1
+    def query(self, l, r):               # half-open [l, r)
+        res = 0                          # identity: 0 for sum, +inf for min, -inf for max
+        l += self.n; r += self.n
+        while l < r:
+            if l &amp; 1: res += self.t[l]; l += 1
+            if r &amp; 1: r -= 1; res += self.t[r]
+            l >>= 1; r >>= 1
+        return res
+
+# ---- Range add, range sum (recursive, lazy propagation) ----
+class LazySeg:
+    def __init__(self, data):
+        self.n = len(data)
+        self.t = [0] * (4 * self.n)
+        self.lazy = [0] * (4 * self.n)
+        self._build(1, 0, self.n - 1, data)
+    def _build(self, node, lo, hi, data):
+        if lo == hi:
+            self.t[node] = data[lo]; return
+        mid = (lo + hi) // 2
+        self._build(2*node, lo, mid, data)
+        self._build(2*node+1, mid+1, hi, data)
+        self.t[node] = self.t[2*node] + self.t[2*node+1]
+    def _push(self, node, lo, hi):                 # flush pending add to children
+        if self.lazy[node]:
+            mid = (lo + hi) // 2
+            for ch, clo, chi in ((2*node, lo, mid), (2*node+1, mid+1, hi)):
+                self.lazy[ch] += self.lazy[node]
+                self.t[ch]   += self.lazy[node] * (chi - clo + 1)
+            self.lazy[node] = 0
+    def add(self, l, r, val, node=1, lo=0, hi=None):   # add val to data[l..r]
+        if hi is None: hi = self.n - 1
+        if r < lo or hi < l: return
+        if l <= lo and hi <= r:                    # node fully covered: defer
+            self.t[node] += val * (hi - lo + 1)
+            self.lazy[node] += val
+            return
+        self._push(node, lo, hi)
+        mid = (lo + hi) // 2
+        self.add(l, r, val, 2*node, lo, mid)
+        self.add(l, r, val, 2*node+1, mid+1, hi)
+        self.t[node] = self.t[2*node] + self.t[2*node+1]
+    def query(self, l, r, node=1, lo=0, hi=None):      # sum data[l..r]
+        if hi is None: hi = self.n - 1
+        if r < lo or hi < l: return 0
+        if l <= lo and hi <= r: return self.t[node]
+        self._push(node, lo, hi)
+        mid = (lo + hi) // 2
+        return (self.query(l, r, 2*node, lo, mid)
+                + self.query(l, r, 2*node+1, mid+1, hi))
+</code></pre>
+<p>Compact reference at the <a href="#refcard">bottom</a>.</p>
+
+<!-- TRAP -->
+<h2>A trap: when "range query" does not mean segment tree</h2>
+<div class="callout trap">
+  <span class="label">Trap</span>
+  <p>"Given an immutable array, answer many range-sum queries" (<strong>Range Sum Query - Immutable</strong>, 303) or "many 2D region-sum queries on a fixed matrix" (<strong>Range Sum Query 2D - Immutable</strong>, 304). The words "range query, many times" pattern-match to segment tree — but there are <em>no updates</em>. A plain <strong>prefix-sum</strong> array (Lesson 4) answers each query in O(1) with no tree, no O(log n) factor, and ten lines less code. The segment tree is strictly worse here. The discriminating question is never "are there range queries?" but "<em>does the array change between them?</em>" No mutation → prefix sums; mutation → segment tree. The signal gives candidates; the update-or-not question gives the verdict.</p>
+</div>
+
+<!-- PRACTICE -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only; ask me if you get stuck. The easy/medium ones build the sub-skills (the prefix-sum contrast, the mutable base case, counting on a value axis); the hards are the real thing. For each, first ask the trap question — "does the array change between queries?" — then decide point vs range update and what monoid you store.</p>
+<ol>
+  <li><strong>Range Sum Query - Immutable</strong> (Easy) — <a href="https://leetcode.com/problems/range-sum-query-immutable/">link</a>. The static baseline: prefix sums, <em>not</em> a segment tree. Own why.</li>
+  <li><strong>Range Sum Query - Mutable</strong> (Medium) — <a href="https://leetcode.com/problems/range-sum-query-mutable/">link</a>. The canonical segment tree — the one we derived.</li>
+  <li><strong>Range Sum Query 2D - Immutable</strong> (Medium) — <a href="https://leetcode.com/problems/range-sum-query-2d-immutable/">link</a>. Contrast again: static → 2D prefix sum, no tree needed.</li>
+  <li><strong>Range Frequency Queries</strong> (Medium) — <a href="https://leetcode.com/problems/range-frequency-queries/">link</a>. Static range queries by value — a gentle "query structure" rep (sorted-index lists also work).</li>
+  <li><strong>My Calendar I</strong> (Medium) — <a href="https://leetcode.com/problems/my-calendar-i/">link</a>. Detect overlap on insert — a stepping stone to interval-aggregate structures.</li>
+  <li><strong>My Calendar III</strong> (Hard) — <a href="https://leetcode.com/problems/my-calendar-iii/">link</a>. Maximum overlap after each booking — range-add + range-max, the lazy-propagation / difference-array showcase.</li>
+  <li><strong>Count of Smaller Numbers After Self</strong> (Hard) — <a href="https://leetcode.com/problems/count-of-smaller-numbers-after-self/">link</a>. Sweep right-to-left, point-update a value-indexed tree, range-query the count below — inversion counting.</li>
+  <li><strong>Reverse Pairs</strong> (Hard) — <a href="https://leetcode.com/problems/reverse-pairs/">link</a>. Same counting-tree idea with the <code>2·nums[j]</code> twist (or merge sort).</li>
+  <li><strong>Count of Range Sum</strong> (Hard) — <a href="https://leetcode.com/problems/count-of-range-sum/">link</a>. Count prefix-sum pairs whose difference lands in <code>[lower, upper]</code> — counting tree over compressed prefix sums.</li>
+  <li><strong>Falling Squares</strong> (Hard) — <a href="https://leetcode.com/problems/falling-squares/">link</a>. Range-assign height + range-max query — lazy propagation over compressed coordinates.</li>
+  <li><strong>Create Sorted Array through Instructions</strong> (Hard) — <a href="https://leetcode.com/problems/create-sorted-array-through-instructions/">link</a>. Count how many current elements are strictly less / greater on each insert — value-indexed counting tree.</li>
+  <li><strong>The Skyline Problem</strong> (Hard) — <a href="https://leetcode.com/problems/the-skyline-problem/">link</a>. Classic range-max-with-updates; a sweep + segment tree (or a heap) reads off the silhouette.</li>
+  <li><strong>Longest Increasing Subsequence II</strong> (Hard) — <a href="https://leetcode.com/problems/longest-increasing-subsequence-ii/">link</a>. The composition below: a max segment tree over values accelerates the LIS DP.</li>
+  <li><strong>Handling Sum Queries After Update</strong> (Hard) — <a href="https://leetcode.com/problems/handling-sum-queries-after-update/">link</a>. Range-flip (0↔1) with lazy propagation plus a running sum — pure lazy-segment-tree.</li>
+</ol>
+
+<!-- COMPOSITION -->
+<h2>Composition — a Hard built from segment tree + an earlier pattern</h2>
+<p><strong>Longest Increasing Subsequence II</strong> (LeetCode 2407, Hard) — <a href="https://leetcode.com/problems/longest-increasing-subsequence-ii/">link</a>. Composes this lesson's <strong>segment tree (range-max, point update)</strong> with the <strong>LIS subsequence-DP recurrence</strong> (Lesson 33).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The problem:</strong> find the longest strictly increasing subsequence of <code>nums</code> with the extra rule that consecutive picked values differ by at most <code>k</code> (i.e. <code>1 ≤ nums[i₊₁] − nums[iⱼ] ≤ k</code>).</p>
+  <p><strong>Pattern A — the LIS DP (Lesson 33):</strong> the LIS family's state is "best answer <em>ending at</em> this element." Here it's cleaner to index the DP by <em>value</em>: let <code>dp[v]</code> = length of the longest valid subsequence ending with value <code>v</code>. Processing <code>nums</code> left to right, the element <code>x</code> can extend any subsequence that ended with a value in <code>[x − k, x − 1]</code>, so <code>dp[x] = 1 + max(dp[v] for v in [x−k, x−1])</code>. That's the ordinary LIS transition, just with a <em>range</em> of valid predecessors instead of "any smaller value."</p>
+  <p><strong>The bottleneck:</strong> computing <code>max(dp[x−k .. x−1])</code> by scanning is O(k) per element, so O(n·k) overall — too slow when k is large. This is the exact DP-transition-over-a-band situation from the "when to use" list.</p>
+  <p><strong>Pattern B — segment tree over the value axis (this lesson):</strong> keep a <em>max</em> segment tree indexed by value. The transition becomes one range-max query over <code>[x−k, x−1]</code> (O(log V)); after computing <code>dp[x]</code>, do one point update setting position <code>x</code> to <code>max(current, dp[x])</code> (O(log V)). The O(k) scan collapses to O(log V), turning the O(n·k) DP into O(n log V).</p>
+  <pre><code>class MaxSeg:                      # point update = "raise", query = range max
+    def __init__(self, size):
+        self.n = size; self.t = [0] * (2 * size)
+    def update(self, i, val):
+        i += self.n
+        if self.t[i] >= val: return
+        self.t[i] = val; i >>= 1
+        while i >= 1:
+            self.t[i] = max(self.t[2*i], self.t[2*i+1]); i >>= 1
+    def query(self, l, r):                     # max over [l, r)
+        res = 0; l += self.n; r += self.n
+        while l < r:
+            if l &amp; 1: res = max(res, self.t[l]); l += 1
+            if r &amp; 1: r -= 1; res = max(res, self.t[r])
+            l >>= 1; r >>= 1
+        return res
+
+def lengthOfLIS(nums, k):
+    seg = MaxSeg(max(nums) + 1)                # value axis
+    best = 0
+    for x in nums:
+        prev = seg.query(max(0, x - k), x)     # Pattern A: best dp over [x−k, x−1]
+        cur = prev + 1
+        seg.update(x, cur)                     # Pattern B: raise dp[x]
+        best = max(best, cur)
+    return best
+</code></pre>
+  <p>The Hard = (LIS subsequence DP: "best ending at value x = 1 + best reachable predecessor") + (segment tree over the value axis to answer "best predecessor in <code>[x−k, x−1]</code>" and record the new value in O(log V)). Strip the "within k" wording and it's plain LIS; the segment tree is only there to make the predecessor lookup fast — which is the recurring role of this structure inside a DP.</p>
+</details>
+
+<h2>Your reps</h2>
+<ol>
+  <li>Implement the iterative point-update <code>SegTree</code> from memory, then change the combine from <code>+</code> to <code>min</code> and the query identity from <code>0</code> to <code>float('inf')</code>; test it answers range-min correctly on <code>[5, 2, 7, 1, 9]</code>.</li>
+  <li>On paper, draw the tree for <code>[3, 1, 4, 1, 5]</code>, then trace exactly which nodes change on <code>update(2, 10)</code> and which maximal nodes <code>query(1, 4)</code> reads — confirm each is ≤ log n nodes.</li>
+  <li>For Range Sum Query - Immutable and the 2D version, write one sentence each on why you'd use prefix sums, not a segment tree — pin the "no updates" signal so you don't over-apply the structure.</li>
+  <li>Take Count of Smaller Numbers After Self and state, in one sentence, what the tree is indexed by (value, not position) and why you sweep right-to-left.</li>
+</ol>
+
+<!-- REFERENCE -->
+<h2 id="refcard">Reference card — Segment Tree</h2>
+<h3>When, and why</h3>
+<p>Use it when an array is <strong>mutated between range queries</strong> and the aggregate is <strong>associative</strong> (sum, min, max, gcd, count) so a parent is computable from its two children. It stores range aggregates in a balanced binary tree (~2n nodes, height log n): a point update touches the single leaf-to-root path, and a range query is stitched from O(log n) maximal in-range nodes — both O(log n). If the array never changes, a prefix sum (Lesson 4) is strictly better; the update is the whole reason the tree exists. For <em>range</em> updates ("add/assign v across [l, r]"), add <strong>lazy propagation</strong>: fold a uniform change into a covered node and defer pushing it to children until something needs them, keeping range-update and range-query at O(log n).</p>
+<h3>The two shapes</h3>
+<p><strong>Point update + range query</strong> (iterative, array of size 2n): leaves at <code>t[n..2n−1]</code>, parent <code>i</code> = combine of <code>t[2i], t[2i+1]</code>; update walks one path up, query folds the maximal nodes while climbing. <strong>Range update + range query</strong> (recursive, array of size 4n + lazy array): on a fully-covered node record the tag and return; <code>_push</code> flushes the tag to children before any descent. Swap the combine (+ / min / max) and the query identity (0 / +∞ / −∞) to change what it computes.</p>
+<h3>Template (point update, range sum)</h3>
+<pre><code>class SegTree:
+    def __init__(self, a):
+        self.n = len(a); self.t = [0]*(2*self.n)
+        for i,x in enumerate(a): self.t[self.n+i] = x
+        for i in range(self.n-1,0,-1): self.t[i] = self.t[2*i]+self.t[2*i+1]
+    def update(self, i, v):
+        i += self.n; self.t[i] = v; i >>= 1
+        while i: self.t[i] = self.t[2*i]+self.t[2*i+1]; i >>= 1
+    def query(self, l, r):                 # [l, r)
+        res = 0; l += self.n; r += self.n
+        while l < r:
+            if l &amp; 1: res += self.t[l]; l += 1
+            if r &amp; 1: r -= 1; res += self.t[r]
+            l >>= 1; r >>= 1
+        return res
+# build O(n); update/query O(log n). min/max: swap + and the identity.</code></pre>
+<h3>Classic problems</h3>
+<p>Range Sum Query - Mutable (M, the canonical one), My Calendar III (H, lazy range-add + max), Count of Smaller Numbers After Self (H, value-indexed counting), Falling Squares (H, lazy range-assign + max), Longest Increasing Subsequence II (H, segment-tree-accelerated DP). Contrast — no updates, so use prefix sums instead: Range Sum Query - Immutable (E), Range Sum Query 2D - Immutable (M).</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> The first judgment is always "segment tree or prefix sum?" — tell me whether the array changes between queries. The second is "point update or range update?" — if the update names a whole interval, you want lazy propagation. If you're staring at an inversion-counting or "how many smaller later" problem and don't see the tree, tell me and we'll find the value axis to index it by.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> CP-Algorithms, <a href="https://cp-algorithms.com/data_structures/segment_tree.html">Segment tree</a> (point and lazy variants). For the "no updates → prefix sums instead" contrast, re-read Lesson 4; for the DP-acceleration composition, Lesson 33 (LIS family).
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 40: Tree Construction &amp; Serialization</span>
+  <span>Course complete — move to interleaving / mock mode in chat.</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

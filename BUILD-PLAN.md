@@ -40,8 +40,9 @@ Each lesson's hard-composition problem may compose THIS lesson's pattern + any p
 | 34 | stack-parsing-design | Valid parens, expr eval, min-stack, LRU | Stacks/Queues |
 | 35 | heap-patterns | Top-K, merge-K, median stream, greedy+heap | Heap |
 | 36 | meet-in-the-middle | Split input, enumerate halves, combine by closest/exact/≤ | Part 7 — advanced |
+| 41 | segment-tree | Range query + point/range update in O(log n); lazy propagation; value-axis counting | Part 7 — advanced |
 
-Part 7 (interleaving/mock) is not a lesson file — it's an ongoing mode handled in chat. Lesson 36+ are advanced composition techniques added on request.
+Part 7 (interleaving/mock) is not a lesson file — it's an ongoing mode handled in chat. Lesson 36+ are advanced composition techniques added on request. (File numbering ran ahead of this table once the Part 6b tree appendix landed as 0038-0040 and meet-in-the-middle as 0037; segment tree is the file 0041, the current last lesson.)
 
 ## Style contract every lesson file MUST follow
 - Self-contained HTML, `<link rel="stylesheet" href="../assets/course.css">`, `<script src="../assets/quiz.js"></script>`.
