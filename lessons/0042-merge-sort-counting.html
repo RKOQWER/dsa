@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 42 — Merge Sort as a Counting Tool</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<p class="course-tag">Pattern-Driven DSA · Part 7 · Advanced composition</p>
+<span class="lesson-no">Lesson 42 of the course — advanced technique</span>
+<h1>Merge Sort as a Counting Tool — the merge step sees every cross-pair exactly once</h1>
+
+<p>You know merge sort as a sorting algorithm. This lesson teaches it as a <em>counting algorithm</em>. The key observation, which unlocks an entire class of hard problems: when merge sort merges two sorted halves, it compares every left element against every right element in O(n) total — and that is precisely the information needed to count pairs with some cross-half relationship. Problems that ask "for each element, how many elements to its right are smaller?" or "count pairs (i, j) where i &lt; j and nums[i] &gt; 2·nums[j]" become O(n log n) once you realize the merge step is already doing the cross-pair sweep you need; you just have to <em>record</em> the count instead of discarding it. This pattern is the reason merge-sort-based solutions exist for problems that look like they need O(n²) comparisons.</p>
+
+<!-- SPACED RETRIEVAL -->
+<h2>Warm-up — recall (no peeking)</h2>
+<div class="probe" data-answered="0">
+  <div class="q">1. In standard <strong>merge sort</strong>, the merge step takes two sorted arrays of total size m and produces one sorted array. Why is the total work across ALL merge steps O(n log n) and not O(n²)?</div>
+  <button class="opt" data-correct="true" data-fb="Right — there are log n levels of recursion (each halving the input), and at each level the total elements merged is n. So total work = n × log n. That same budget is what merge-sort counting piggybacks on — the counting adds only O(1) per comparison, so the whole thing stays O(n log n).">There are log n levels; at each level the total elements across all merges is n — so n × log n overall</button>
+  <button class="opt" data-correct="false" data-fb="n² would mean every element is compared against every other, which is what the divide step avoids. The level structure keeps it at n log n.">Each element is compared against every other element — O(n²)</button>
+  <button class="opt" data-correct="false" data-fb="O(n) is not enough to sort n elements (a lower bound argument shows Ω(n log n) for comparison sorts). n log n is tight.">The merge always finishes in O(n) total — just one pass</button>
+</div>
+<div class="probe" data-answered="0">
+  <div class="q">2. <strong>Binary search</strong> (Lesson 10) in a sorted array of size m costs O(log m). If you have a sorted right-half of size m and you binary-search for each of the n/2 left elements, what is the total cost, and how does that compare to a linear scan over the sorted right-half for each left element?</div>
+  <button class="opt" data-correct="true" data-fb="Right — binary search per left element: (n/2) × log(n/2) = O(n log n) total; linear scan per left element: (n/2) × (n/2) = O(n²). When two sorted halves are already available (merge sort gives you this for free!), a single two-pointer pass across both halves replaces even the O(n log n) binary searches with O(n) — which is the combine trick inside reverse pairs.">Binary search total: (n/2)·log(n/2) = O(n log n); linear scan total: (n/2)² = O(n²) — two-pointer reduces it further to O(n)</button>
+  <button class="opt" data-correct="false" data-fb="O(log n) is the cost of one binary search; doing one per left element multiplies by n/2.">Binary search is O(log n) regardless of how many left elements there are</button>
+  <button class="opt" data-correct="false" data-fb="Binary search costs log m per query, not constant time — the sorted structure helps but not to O(1).">Binary search is O(1) on a sorted array</button>
+</div>
+
+<!-- DERIVATION -->
+<h2>Deriving the pattern via Inversion Count</h2>
+<p>An <strong>inversion</strong> in an array is any pair of indices (i, j) where i &lt; j but nums[i] &gt; nums[j] — an element that is to the left but larger. The question: count all inversions. <strong>Count of Smaller Numbers After Self</strong> (LC 315) asks essentially the same thing per element.</p>
+
+<div class="callout derive">
+  <span class="label">Derive it</span>
+  <p><strong>Brute force:</strong> for every pair (i, j) with i &lt; j, check if nums[i] &gt; nums[j]. Two nested loops — O(n²). With n = 10⁵ that is 10¹⁰ operations; completely infeasible.</p>
+  <p><strong>Spot the waste.</strong> The brute force re-examines pairs it already has partial information about. If you know nums[3] &gt; nums[7], and you later know nums[3] &gt; nums[6], you're doing separate work that could have been bundled. But the deeper observation is this: <em>what structure would make it cheap to count "how many elements on the right are smaller than nums[i]?"</em> If the right side were <strong>sorted</strong>, a binary search would answer it in O(log n). And if the left side were also sorted, a single <strong>two-pointer pass</strong> would answer it for all left elements in O(n).</p>
+  <p><strong>The insight (= the pattern).</strong> Merge sort recursively <em>sorts both halves before merging them</em>. By the time the merge step runs, the left half and right half are already sorted — that's exactly the structure you just said you needed! So: run the normal merge sort, but during the merge step, <em>before</em> (or while) you merge, count the cross-inversions using the sortedness of the two halves. When a left element left[i] is placed into the output (because left[i] ≤ right[j]), <em>j</em> right elements have already been moved out before it — meaning j right elements are smaller than left[i] and came after it. That is a count of j inversions contributed by left[i], computed for free during the merge sweep.</p>
+  <p><strong>Why this doesn't over-count.</strong> Every inversion spans exactly one merge step: the two elements are in the same half at some recursion level and in different halves at the level above. So each inversion is counted exactly once, at the level where the two elements first appear in different halves. The total count is the sum of all cross-inversion counts across all merge steps.</p>
+  <pre><code>def count_inversions(arr):
+    """Returns (sorted copy of arr, number of inversions in arr).
+    Inversion: pair (i,j) with i &lt; j and arr[i] &gt; arr[j]."""
+    if len(arr) &lt;= 1:
+        return arr[:], 0
+    mid = len(arr) // 2
+    left,  lc = count_inversions(arr[:mid])
+    right, rc = count_inversions(arr[mid:])
+
+    # ---- merge step: count cross-inversions ----
+    merged, cross = [], 0
+    i = j = 0
+    while i &lt; len(left) and j &lt; len(right):
+        if left[i] &lt;= right[j]:
+            # left[i] stays left: j right elements already moved out are all &lt; left[i]
+            # those j elements came AFTER left[i] in the original array, so j inversions
+            cross += j
+            merged.append(left[i]); i += 1
+        else:
+            # right[j] &lt; left[i]: it goes first; no count here
+            # (we count when we finally place the left elements that beat it)
+            merged.append(right[j]); j += 1
+    while i &lt; len(left):
+        cross += j          # all of right was already placed; j = len(right)
+        merged.append(left[i]); i += 1
+    merged += right[j:]
+    return merged, lc + rc + cross
+</code></pre>
+  <p>You didn't recall "modified merge sort for inversions" — you asked "what structure makes the count cheap?", answered "sorted halves", and then realized merge sort hands you exactly that structure at every level. The counting is free; you're just reading off a number that the merge was computing anyway.</p>
+</div>
+
+<!-- GENERALIZING THE PATTERN -->
+<h2>The three variants — same bones, different counting predicate</h2>
+<p>Every merge-sort counting problem has the same skeleton: sort both halves recursively, then during the merge step exploit the sortedness to count cross-half pairs satisfying some relation. The only thing that changes between problems is <em>what relation you're counting</em> and <em>whether you count while merging or just before merging</em>.</p>
+
+<h3>Variant 1 — Count of Smaller Numbers After Self (LC 315)</h3>
+<p>"For each i, how many j &gt; i have nums[j] &lt; nums[i]?" — a per-element inversion count instead of a global total. The trick: carry each element's original index through the merge so you can write the count back to the right position in a result array. When a left element <code>left[i]</code> is placed (meaning left[i] ≤ right[j]), exactly j right elements were placed before it, all smaller — so add j to <code>result[original_index_of_left[i]]</code>.</p>
+<pre><code>def countSmaller(nums):
+    result = [0] * len(nums)
+    # carry (original_index, value) so we can write back to result
+    indexed = list(enumerate(nums))
+
+    def merge_sort(arr):
+        if len(arr) &lt;= 1:
+            return arr
+        mid = len(arr) // 2
+        left  = merge_sort(arr[:mid])
+        right = merge_sort(arr[mid:])
+        merged = []
+        i = j = 0
+        while i &lt; len(left) and j &lt; len(right):
+            if left[i][1] &lt;= right[j][1]:
+                result[left[i][0]] += j   # j right elements smaller, came after
+                merged.append(left[i]); i += 1
+            else:
+                merged.append(right[j]); j += 1
+        while i &lt; len(left):
+            result[left[i][0]] += j       # all of right was smaller
+            merged.append(left[i]); i += 1
+        return merged + right[j:]
+
+    merge_sort(indexed)
+    return result
+</code></pre>
+
+<h3>Variant 2 — Reverse Pairs (LC 493)</h3>
+<p>"Count pairs (i, j) where i &lt; j and nums[i] &gt; 2·nums[j]." The predicate is now <code>left[i] &gt; 2·right[j]</code> instead of <code>left[i] &gt; right[j]</code>. The critical detail: <strong>you must count before merging</strong>, not during, because the counting predicate (<code>&gt; 2×</code>) and the merge predicate (<code>&gt;</code>) are different — if you try to count during the merge you conflate the two conditions. Count first with a two-pointer scan across both sorted halves, then do the standard merge.</p>
+<pre><code>def reversePairs(nums):
+    count = [0]
+
+    def merge_sort(arr):
+        if len(arr) &lt;= 1:
+            return arr
+        mid = len(arr) // 2
+        left  = merge_sort(arr[:mid])
+        right = merge_sort(arr[mid:])
+
+        # 1. COUNT cross-pairs satisfying the condition (before merging)
+        #    left and right are both sorted — two-pointer over them
+        j = 0
+        for l in left:
+            while j &lt; len(right) and l &gt; 2 * right[j]:
+                j += 1
+            count[0] += j     # first j right elements satisfy l &gt; 2*right[j]
+
+        # 2. MERGE normally (sorting for the next level up)
+        merged = []; i = k = 0
+        while i &lt; len(left) and k &lt; len(right):
+            if left[i] &lt;= right[k]:
+                merged.append(left[i]); i += 1
+            else:
+                merged.append(right[k]); k += 1
+        return merged + left[i:] + right[k:]
+
+    merge_sort(nums)
+    return count[0]
+</code></pre>
+
+<h3>Variant 3 — Count of Range Sum (LC 327)</h3>
+<p>"Count subarrays whose sum lies in [lower, upper]." Convert to prefix sums: a subarray sum nums[i..j] = prefix[j+1] − prefix[i], so we want pairs (i, j) with i &lt; j and lower ≤ prefix[j] − prefix[i] ≤ upper, i.e. prefix[j] − upper ≤ prefix[i] ≤ prefix[j] − lower. Now that's a cross-pair count on the prefix-sum array — count before merging with a two-pointer sweep (j advances as prefix[i] grows), then merge normally. Same skeleton, new predicate.</p>
+<pre><code>def countRangeSum(nums, lower, upper):
+    from itertools import accumulate
+    prefix = [0] + list(accumulate(nums))
+    count = [0]
+
+    def merge_sort(arr):
+        if len(arr) &lt;= 1:
+            return arr
+        mid = len(arr) // 2
+        left  = merge_sort(arr[:mid])
+        right = merge_sort(arr[mid:])
+
+        # COUNT: for each right[j], count left[i] in [right[j]-upper, right[j]-lower]
+        lo = hi = 0
+        for r in right:
+            while lo &lt; len(left) and left[lo] &lt;  r - upper: lo += 1
+            while hi &lt; len(left) and left[hi] &lt;= r - lower: hi += 1
+            count[0] += hi - lo
+
+        # MERGE normally
+        merged = []; i = j = 0
+        while i &lt; len(left) and j &lt; len(right):
+            if left[i] &lt;= right[j]:
+                merged.append(left[i]); i += 1
+            else:
+                merged.append(right[j]); j += 1
+        return merged + left[i:] + right[j:]
+
+    merge_sort(prefix)
+    return count[0]
+</code></pre>
+
+<!-- THE SKELETON -->
+<h2>The unified skeleton (copy and adapt)</h2>
+<p>Every problem in this family fills the same three slots:</p>
+<pre><code>def solve(arr):
+    answer = [0]          # or a list for per-element answers
+
+    def merge_sort(arr):
+        if len(arr) &lt;= 1: return arr
+        mid = len(arr) // 2
+        left  = merge_sort(arr[:mid])
+        right = merge_sort(arr[mid:])
+
+        # SLOT 1 — COUNT cross-pairs using sortedness of left and right.
+        #   Option A (count DURING merge): when you place left[i], j right
+        #     elements have already been placed — all of them &lt; left[i]. Add j.
+        #     Use this when count predicate == merge predicate (e.g. "smaller than").
+        #   Option B (count BEFORE merge, two-pointer): when count predicate ≠
+        #     merge predicate (e.g. "&gt; 2×", "sum in range"), do a separate two-pointer
+        #     sweep across sorted left and right first, then merge.
+
+        # SLOT 2 — MERGE normally to restore sorted order for the level above.
+        merged = []; i = j = 0
+        while i &lt; len(left) and j &lt; len(right):
+            if left[i] &lt;= right[j]:
+                merged.append(left[i]); i += 1
+            else:
+                merged.append(right[j]); j += 1
+        return merged + left[i:] + right[j:]
+
+        # SLOT 3 — if you need per-element answers, carry original indices
+        #   through the merge by sorting (index, value) pairs and writing
+        #   back to a result array keyed by index.
+
+    merge_sort(arr)
+    return answer[0]
+# O(n log n) time, O(n) extra space for the merge buffers.
+</code></pre>
+
+<!-- WHEN / WHY -->
+<h2>When to reach for merge-sort counting, and why</h2>
+<ul>
+  <li><strong>The problem asks you to count pairs (i, j) with i &lt; j satisfying some cross-element relation, and n can be up to 10⁵.</strong> This is the primary signal. The brute O(n²) is too slow; you need O(n log n). The merge step is the only part of a comparison sort that ever compares an element from the "left portion" against an element from the "right portion" — which is exactly a cross-pair. If the relation you want to count is one that sortedness makes easy to sweep in linear time, merge sort gives you that sweep for free at every level.</li>
+  <li><strong>The counting predicate is monotone in one argument when the other is fixed — e.g. "smaller than," "&gt; 2×," "sum in [lower, upper]."</strong> Monotonicity is what lets you use a two-pointer or advance a pointer without backtracking. If the predicate requires arbitrary element interactions, the two-pointer sweep doesn't work and merge sort doesn't help.</li>
+  <li><strong>Per-element answers ("for each i, how many j &gt; i satisfy ...") not just a global count.</strong> Carry original indices through the merge as (index, value) pairs and write each element's count back to a result array. The sort reorders elements for efficiency; the index keeps the answer attributed correctly.</li>
+  <li><strong>The problem is really about prefix sums with a range condition.</strong> "Count subarrays whose sum is in [lower, upper]" is always a cross-pair count on the prefix-sum array — convert first, then apply the merge-sort skeleton. Whenever a subarray-aggregate question resists direct DP or prefix-sum hashing, this is the next thing to try.</li>
+  <li><strong>Segment tree / BIT (Lesson 41) is the alternative you should compare.</strong> Both solve the same class in O(n log n). Merge sort is often simpler to code and needs no coordinate compression. The value-indexed counting tree is more flexible when you need range-query results beyond counts. If you're stuck on which to use, merge sort is a safer default for pure counting on the original array; the tree wins when you need per-query answers or dynamic inserts.</li>
+</ul>
+
+<!-- TRAP -->
+<h2>A trap: when "count pairs" does NOT need merge sort</h2>
+<div class="callout trap">
+  <span class="label">Trap</span>
+  <p><strong>"Count pairs (i, j) with nums[i] + nums[j] == target"</strong> — this looks like a cross-pair count, but the relation is symmetric (order of i and j doesn't matter), there is no "left came before right in the array" constraint, and a hash map answers it in O(n): for each element, check how many earlier elements make the sum equal (Lesson 5). The merge-sort pattern is specifically for problems where the <em>positional ordering</em> matters — (i, j) with i &lt; j — and the predicate compares their <em>values</em> in a monotone way. If the problem cares about positions but the predicate is just equality, hashing wins. If the problem cares about the ordering AND uses an inequality (smaller, larger, in a range), merge sort or a counting tree is the right tool.</p>
+</div>
+
+<!-- PRACTICE -->
+<h2>Practice — at least ten, easy to hard</h2>
+<p>Problems only; ask me if you get stuck. For every problem first ask: "is this a cross-pair count where order matters and the predicate is monotone?" — that three-part check is the recognition move. The easy ones build the sub-skills; the hards are the real pattern.</p>
+<ol>
+  <li><strong>Merge Sorted Array</strong> (Easy) — <a href="https://leetcode.com/problems/merge-sorted-array/">link</a>. Own the merge step cold before anything else. No counting yet.</li> (Done)
+  <li><strong>How Many Numbers Are Smaller Than the Current Number</strong> (Easy) — <a href="https://leetcode.com/problems/how-many-numbers-are-smaller-than-the-current-number/">link</a>. A  per-element count of smaller elements — compare a sort+rank solution here vs the merge-sort approach, and notice why sort+rank is enough when you don't need "strictly to the right".</li> (Done)
+  <li><strong>Sort List</strong> (Medium) — <a href="https://leetcode.com/problems/sort-list/">link</a>. Implement merge sort on a linked list. Essential rep: merge sort with no random access forces you to understand the merge step deeply.</li> (Done)
+  <li><strong>Sort an Array</strong> (Medium) — <a href="https://leetcode.com/problems/sort-an-array/">link</a>. Implement merge sort on an array from scratch. Write it until it is automatic — the counting is built on top of this skeleton.</li> (Done)
+  <li><strong>Global and Local Inversions</strong> (Medium) — <a href="https://leetcode.com/problems/global-and-local-inversions/">link</a>. A conceptual inversion problem: show that global == local iff no element is out of place by more than one position. Practice turning "count inversions" insight into a mathematical shortcut.</li> (Done)
+  <li><strong>Maximum Gap</strong> (Medium) — <a href="https://leetcode.com/problems/maximum-gap/">link</a>. Find the max difference between successive elements in the sorted form. A pigeonhole/radix-sort insight — useful contrast to comparison-based merging.</li> (Done)
+  <li><strong>Count of Smaller Numbers After Self</strong> (Hard) — <a href="https://leetcode.com/problems/count-of-smaller-numbers-after-self/">link</a>. The canonical per-element merge-sort counting. Implement the (index, value) carry-through version.</li> 
+  <li><strong>Reverse Pairs</strong> (Hard) — <a href="https://leetcode.com/problems/reverse-pairs/">link</a>. Like inversion count but with the 2× twist. Key practice: separating the count pass from the merge pass.</li>
+  <li><strong>Count of Range Sum</strong> (Hard) — <a href="https://leetcode.com/problems/count-of-range-sum/">link</a>. Convert to prefix sums first, then cross-pair count on prefix array with the range predicate.</li>
+  <li><strong>The Skyline Problem</strong> (Hard) — <a href="https://leetcode.com/problems/the-skyline-problem/">link</a>. Merge-sort-style divide and conquer: merge the skylines of two halves. A different flavour — the merge step combines partial answers, not just counts.</li>
+  <li><strong>Count Good Triplets in an Array</strong> (Hard) — <a href="https://leetcode.com/problems/count-good-triplets-in-an-array/">link</a>. Count triplets respecting positional order in two permutations — a harder cross-pair problem that needs merge sort or a BIT.</li>
+</ol>
+
+<!-- COMPOSITION -->
+<h2>Composition — a Hard built from merge-sort counting + earlier patterns</h2>
+<p><strong>Count of Range Sum</strong> (LeetCode 327, Hard) — <a href="https://leetcode.com/problems/count-of-range-sum/">link</a>. Composes this lesson's <strong>merge-sort cross-pair counting</strong> with <strong>prefix sums</strong> (Lesson 4) and the <strong>two-pointer advance on sorted halves</strong> (Lesson 2).</p>
+
+<details class="reveal">
+  <summary>Show the decomposition (try it yourself first)</summary>
+  <p><strong>The problem:</strong> given nums and bounds [lower, upper], count the number of subarrays whose sum lies in [lower, upper].</p>
+  <p><strong>Pattern A — prefix sums (Lesson 4):</strong> subarray sum nums[i..j] = prefix[j+1] − prefix[i]. So the condition becomes: count pairs (i, j) with i &lt; j in the prefix array where lower ≤ prefix[j] − prefix[i] ≤ upper, i.e. prefix[j] − upper ≤ prefix[i] ≤ prefix[j] − lower. You have transformed a subarray problem into a cross-pair count on the prefix array. This transformation is always the first move for subarray-aggregate range problems.</p>
+  <p><strong>Pattern B — merge-sort counting (this lesson):</strong> the cross-pair count respects position order (i &lt; j) and the predicate on the values is a range condition — the exact shape that works with merge sort. At each merge step, left and right are both sorted. For each element right[j], the left elements satisfying the range condition form a contiguous window (because left is sorted), so two pointers lo and hi sweep it in O(1) amortised per right element.</p>
+  <p><strong>Pattern C — two-pointer advance (Lesson 2):</strong> the two-pointer sweep inside the merge step works because the left array is sorted and the window for each right[j] only moves forward as right[j] increases — the classic monotone-advance that turns O(n²) into O(n) per level.</p>
+  <pre><code>def countRangeSum(nums, lower, upper):
+    from itertools import accumulate
+    prefix = [0] + list(accumulate(nums))   # Pattern A: convert to prefix sums
+    count = [0]
+
+    def merge_sort(arr):
+        if len(arr) &lt;= 1: return arr
+        mid = len(arr) // 2
+        left  = merge_sort(arr[:mid])
+        right = merge_sort(arr[mid:])
+
+        # Pattern B+C: two-pointer count BEFORE merging
+        lo = hi = 0
+        for r in right:                         # for each right[j]
+            while lo &lt; len(left) and left[lo] &lt;  r - upper: lo += 1   # lo: lower bound
+            while hi &lt; len(left) and left[hi] &lt;= r - lower: hi += 1   # hi: upper bound
+            count[0] += hi - lo                 # left[lo..hi-1] all satisfy the condition
+
+        # Standard merge to sort for the level above
+        merged = []; i = j = 0
+        while i &lt; len(left) and j &lt; len(right):
+            if left[i] &lt;= right[j]:
+                merged.append(left[i]); i += 1
+            else:
+                merged.append(right[j]); j += 1
+        return merged + left[i:] + right[j:]
+
+    merge_sort(prefix)
+    return count[0]
+</code></pre>
+  <p>The Hard = (prefix sum to reframe subarray condition as a cross-pair condition) + (merge sort to get sorted halves "for free") + (two-pointer sweep of the sorted left window for each right element). Peel off the range condition and it is inversion count; add the range and you need the window sweep — exactly how composed hards tend to layer one more requirement on top of a simpler core.</p>
+</details>
+
+<h2>Your reps</h2>
+<ol>
+  <li>Implement <code>count_inversions</code> from scratch on paper. Then dry-run it on <code>[3, 1, 2]</code>: draw the recursion tree, write what left and right are at each merge, and count which cross-pairs each merge step catches.</li>
+  <li>In Count of Smaller Numbers After Self, explain in one sentence why you carry (original_index, value) pairs rather than just values, and what would go wrong if you sorted the values alone.</li>
+  <li>For Reverse Pairs, explain in one sentence why you count <em>before</em> merging (not during), and construct a small example where counting during the merge would give the wrong answer.</li>
+  <li>Take the Count of Range Sum solution and trace it on <code>nums = [-2, 5, -1], lower = -2, upper = 2</code>. Write down the prefix array, draw the first merge, and verify the count by brute force.</li>
+</ol>
+
+<!-- REFERENCE -->
+<h2 id="refcard">Reference card — Merge Sort as a Counting Tool</h2>
+<h3>When, and why</h3>
+<p>Use it when you need to count pairs (i, j) with i &lt; j satisfying a monotone cross-element predicate (smaller than, greater than 2×, sum in range) and n is up to 10⁵ so O(n²) is too slow. The merge step naturally compares every left-half element against every right-half element in O(n) total; by recording these comparisons instead of discarding them, you get O(n log n) counting. The key requirement: the counting predicate must be monotone so a pointer or two-pointer sweep can replace a linear scan, keeping each merge level at O(n).</p>
+<h3>The two counting modes</h3>
+<p><strong>Count during the merge</strong> when the count predicate equals the merge predicate (e.g. "count left[i] &gt; right[j]"): when you place left[i], j right elements have already been moved out, all smaller — add j. <strong>Count before the merge</strong> when the predicates differ (e.g. "left[i] &gt; 2·right[j]" or "right[j] − left[i] in [lower, upper]"): do a separate two-pointer sweep over the sorted halves, then merge normally. Never conflate the two — mixing count and merge logic when the predicates differ gives wrong answers.</p>
+<h3>Skeleton</h3>
+<pre><code>def merge_sort(arr):        # returns sorted arr; side-effects the answer
+    if len(arr) &lt;= 1: return arr
+    mid = len(arr) // 2
+    left = merge_sort(arr[:mid]); right = merge_sort(arr[mid:])
+    # --- COUNT (before or during merge) ---
+    # --- MERGE normally ---
+    merged = []; i = j = 0
+    while i &lt; len(left) and j &lt; len(right):
+        if left[i] &lt;= right[j]: merged.append(left[i]); i += 1
+        else:                    merged.append(right[j]); j += 1
+    return merged + left[i:] + right[j:]
+# O(n log n). Carry (orig_index, val) pairs for per-element answers.</code></pre>
+<h3>Classic problems</h3>
+<p>Count Inversions (global count, count-during), Count of Smaller Numbers After Self (315, Hard — per-element count, carry indices), Reverse Pairs (493, Hard — 2× twist, count-before), Count of Range Sum (327, Hard — prefix-sum + range window), The Skyline Problem (218, Hard — divide-and-conquer merge of partial answers).</p>
+<h3>Compare with Segment Tree / BIT (Lesson 41)</h3>
+<p>Both approaches solve the same counting problems in O(n log n). Merge sort: no coordinate compression needed, simpler to code from scratch, naturally handles the positional-order constraint. Value-indexed tree (Lesson 41): more flexible when you need per-query answers on an online stream, or when the domain is coordinate-compressed. When in doubt, try merge sort first — if the predicate is a clean inequality or range, it will work.</p>
+
+<div class="ask-teacher">
+  <strong>I'm your teacher — ask me anything.</strong> The moment you see "count pairs with i &lt; j and some value relation," ask: is the relation monotone? If yes, this is the pattern. The hardest step is usually recognising that a subarray problem is secretly a cross-pair problem on the prefix-sum array — if you get stuck on that conversion, show me the problem statement and we'll do the reduction together.
+</div>
+
+<footer class="src" id="src">
+  <strong>Primary source:</strong> CLRS Chapter 2 (merge sort) and Chapter 28 notes on inversions. For the prefix-sum conversion, re-read Lesson 4; for the two-pointer advance inside the merge, Lesson 2.
+</footer>
+
+<nav class="lesson-nav">
+  <span>← Lesson 41: Segment Tree</span>
+  <span>Course complete — move to interleaving / mock mode in chat.</span>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
